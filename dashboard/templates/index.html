@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart AQI Monitoring System</title>
+    <link rel="stylesheet" href="../static/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <!-- Navigation Header -->
+    <header class="header">
+        <div class="container">
+            <div class="logo">
+                <i class="fas fa-wind"></i>
+                <h1>Smart AQI System</h1>
+            </div>
+            <nav class="nav">
+                <a href="#overview" class="nav-link active">Overview</a>
+                <a href="#anomalies" class="nav-link">Anomalies</a>
+                <a href="#pca" class="nav-link">PCA Analysis</a>
+                <a href="#cities" class="nav-link">City Details</a>
+                <a href="#reports" class="nav-link">Reports</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Dashboard -->
+    <main class="main-content">
+        <!-- Overview Section -->
+        <section id="overview" class="section">
+            <div class="container">
+                <h2 class="section-title">Real-Time AQI Overview</h2>
+                
+                <!-- Stats Cards -->
+                <div class="stats-grid">
+                    <div class="stat-card good">
+                        <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+                        <div class="stat-content">
+                            <h3 id="stat-good">0</h3>
+                            <p>Good Quality</p>
+                        </div>
+                    </div>
+                    <div class="stat-card moderate">
+                        <div class="stat-icon"><i class="fas fa-exclamation-circle"></i></div>
+                        <div class="stat-content">
+                            <h3 id="stat-moderate">0</h3>
+                            <p>Moderate</p>
+                        </div>
+                    </div>
+                    <div class="stat-card poor">
+                        <div class="stat-icon"><i class="fas fa-times-circle"></i></div>
+                        <div class="stat-content">
+                            <h3 id="stat-poor">0</h3>
+                            <p>Poor/Very Poor</p>
+                        </div>
+                    </div>
+                    <div class="stat-card severe">
+                        <div class="stat-icon"><i class="fas fa-skull-crossbones"></i></div>
+                        <div class="stat-content">
+                            <h3 id="stat-severe">0</h3>
+                            <p>Severe</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live AQI Map -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Live AQI Heatmap</h3>
+                        <div class="filter-group">
+                            <select id="state-filter" class="filter-select">
+                                <option value="">All States</option>
+                            </select>
+                            <button id="refresh-btn" class="btn-primary">
+                                <i class="fas fa-sync-alt"></i> Refresh
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="aqi-heatmap" class="chart-container"></div>
+                    </div>
+                </div>
+
+                <!-- Recent Readings Table -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Latest Readings</h3>
+                        <input type="text" id="search-city" placeholder="Search city..." class="search-input">
+                    </div>
+                    <div class="card-body">
+                        <div class="table-wrapper">
+                            <table class="data-table" id="recent-readings-table">
+                                <thead>
+                                    <tr>
+                                        <th>City</th>
+                                        <th>Station</th>
+                                        <th>AQI</th>
+                                        <th>Category</th>
+                                        <th>PM2.5</th>
+                                        <th>PM10</th>
+                                        <th>Last Update</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="readings-tbody">
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Anomaly Detection Section -->
+        <section id="anomalies" class="section">
+            <div class="container">
+                <h2 class="section-title">Anomaly Detection Dashboard</h2>
+                
+                <div class="info-banner">
+                    <i class="fas fa-info-circle"></i>
+                    <p>Using Isolation Forest and Z-score methods to detect unusual pollution patterns</p>
+                </div>
+
+                <!-- Anomaly Summary -->
+                <div class="stats-grid">
+                    <div class="stat-card anomaly">
+                        <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                        <div class="stat-content">
+                            <h3 id="anomaly-count">0</h3>
+                            <p>Anomalies Detected (24h)</p>
+                        </div>
+                    </div>
+                    <div class="stat-card info">
+                        <div class="stat-icon"><i class="fas fa-chart-line"></i></div>
+                        <div class="stat-content">
+                            <h3 id="anomaly-rate">0%</h3>
+                            <p>Anomaly Rate</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Anomaly Detection Methods -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Detection Method Comparison</h3>
+                        <div class="toggle-group">
+                            <button class="toggle-btn active" data-method="both">Both</button>
+                            <button class="toggle-btn" data-method="iforest">Isolation Forest</button>
+                            <button class="toggle-btn" data-method="zscore">Z-Score</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="anomaly-timeline-chart" class="chart-container"></div>
+                    </div>
+                </div>
+
+                <!-- Detected Anomalies Table -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Detected Anomalies</h3>
+                        <select id="anomaly-filter" class="filter-select">
+                            <option value="all">All Anomalies</option>
+                            <option value="iforest">Isolation Forest Only</option>
+                            <option value="zscore">Z-Score Only</option>
+                            <option value="both">Both Methods</option>
+                        </select>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-wrapper">
+                            <table class="data-table" id="anomaly-table">
+                                <thead>
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>City</th>
+                                        <th>Station</th>
+                                        <th>AQI</th>
+                                        <th>Detection Method</th>
+                                        <th>Z-Score</th>
+                                        <th>Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="anomaly-tbody">
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- PCA Analysis Section -->
+        <section id="pca" class="section">
+            <div class="container">
+                <h2 class="section-title">PCA Dimensionality Reduction</h2>
+                
+                <div class="info-banner">
+                    <i class="fas fa-info-circle"></i>
+                    <p>Principal Component Analysis reduces pollutant features into 2D/3D space for visualization</p>
+                </div>
+
+                <!-- PCA Variance Explained -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Explained Variance</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="variance-chart" class="chart-container small"></div>
+                        <div class="pca-stats">
+                            <div class="pca-stat">
+                                <label>PC1 Variance:</label>
+                                <span id="pc1-var">0%</span>
+                            </div>
+                            <div class="pca-stat">
+                                <label>PC2 Variance:</label>
+                                <span id="pc2-var">0%</span>
+                            </div>
+                            <div class="pca-stat">
+                                <label>PC3 Variance:</label>
+                                <span id="pc3-var">0%</span>
+                            </div>
+                            <div class="pca-stat">
+                                <label>Cumulative:</label>
+                                <span id="cumulative-var">0%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PCA Visualization -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>PCA Scatter Plot</h3>
+                        <div class="toggle-group">
+                            <button class="toggle-btn active" data-view="2d">2D View</button>
+                            <button class="toggle-btn" data-view="3d">3D View</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="pca-scatter" class="chart-container large"></div>
+                        <div class="legend-container">
+                            <div class="legend-item">
+                                <span class="legend-color" style="background: #00C853"></span>
+                                <span>Good</span>
+                            </div>
+                            <div class="legend-item">
+                                <span class="legend-color" style="background: #FFD600"></span>
+                                <span>Satisfactory</span>
+                            </div>
+                            <div class="legend-item">
+                                <span class="legend-color" style="background: #FF6D00"></span>
+                                <span>Moderate</span>
+                            </div>
+                            <div class="legend-item">
+                                <span class="legend-color" style="background: #DD2C00"></span>
+                                <span>Poor</span>
+                            </div>
+                            <div class="legend-item">
+                                <span class="legend-color" style="background: #7B1FA2"></span>
+                                <span>Very Poor</span>
+                            </div>
+                            <div class="legend-item">
+                                <span class="legend-color" style="background: #4A148C"></span>
+                                <span>Severe</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- City Details Section -->
+        <section id="cities" class="section">
+            <div class="container">
+                <h2 class="section-title">City-wise Analysis</h2>
+                
+                <div class="city-grid" id="city-grid">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Reports Section -->
+        <section id="reports" class="section">
+            <div class="container">
+                <h2 class="section-title">Generated Reports</h2>
+                
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Daily Reports Archive</h3>
+                        <button id="generate-report-btn" class="btn-primary">
+                            <i class="fas fa-file-pdf"></i> Generate New Report
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <div class="reports-list" id="reports-list">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2024 Smart AQI Monitoring System | Data updated hourly</p>
+            <p>Last Update: <span id="last-update-time">--</span></p>
+        </div>
+    </footer>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <p>Loading data...</p>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
+    <script src="../static/scripts.js"></script>
+</body>
+</html>
