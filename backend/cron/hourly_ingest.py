@@ -29,4 +29,25 @@ def fetch_realtime(city="Delhi"):
             "longitude": lon,
             "last_update": time,
             "CO": pollutants.get("co"),
-            "NO2
+            "NO2": pollutants.get("no2"),
+            "SO2": pollutants.get("so2"),
+            "PM10": pollutants.get("pm10"),
+            "PM2.5": pollutants.get("pm25"),
+            "OZONE": pollutants.get("o3"),
+            "NH3": pollutants.get("nh3")
+        }
+
+        rows.append(row)
+
+    df = pd.DataFrame(rows)
+
+    # Apply AQI calculator
+    df = apply_aqi(df)
+
+    # Save for dashboard
+    df.to_csv(SAVE_PATH, index=False)
+
+    print(f"⏳ Saved real-time AQI: {SAVE_PATH}")
+
+if __name__ == "__main__":
+    fetch_realtime()
