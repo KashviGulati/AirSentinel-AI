@@ -43,7 +43,7 @@ def fetch_city(city):
         data = r.json()
 
         if data.get("status") != "ok":
-            print(f"❌ Failed for {city}: {data.get('data')}")
+            print(f" Failed for {city}: {data.get('data')}")
             return None
 
         d = data["data"]
@@ -89,7 +89,8 @@ def save(rows):
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     df = pd.DataFrame(rows)
     df.to_csv(OUT, index=False)
-    print(f"✔ Saved {len(rows)} rows → {OUT}")
+    print(f"Saved {len(rows)} rows -> {OUT}")
+
 
 # -------------------------------------------------------
 # MAIN
