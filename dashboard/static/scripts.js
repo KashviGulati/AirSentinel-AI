@@ -1,14 +1,18 @@
 // dashboard/static/scripts.js
-// SMART AQI FRONTEND JAVASCRIPT (complete)
-// Uses relative API base so it works when served by Flask
+
 const API_BASE = "/api";
 
-// Global memory
-let aqiData = [];
+// Global data storage
+let baseRows = [];          // From realtime or recent-readings
+let predictedRows = [];     // baseRows + prediction field
 let cityStats = [];
-let anomalyData = [];
+let realtimeData = [];
+let allCities = [];
 
-// Helper category
+// ============================================
+// HELPERS
+// ============================================
+
 function getAQICategory(aqi) {
     if (!aqi && aqi !== 0) return "Unknown";
     aqi = Number(aqi);
@@ -20,241 +24,487 @@ function getAQICategory(aqi) {
     return "Severe";
 }
 
-// ---------- 1) Ingest (trigger server to fetch OpenAQ) ----------
-async function triggerIngest(country="IN", limit=500) {
+function getCategoryColor(category) {
+    const colors = {
+        'Good': '#00C853',
+        'Satisfactory': '#FFD600',
+        'Moderate': '#FF6D00',
+        'Poor': '#DD2C00',
+        'Very Poor': '#7B1FA2',
+        'Severe': '#4A148C'
+    };
+    return colors[category] || '#757575';
+}
+
+function showLoading() {
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) overlay.classList.add('active');
+}
+
+function hideLoading() {
+    const overlay = document.getElementById('loadingOverlay');
+    if (overlay) overlay.classList.remove('active');
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
     try {
-        const res = await fetch(`${API_BASE}/ingest`, {
-            method: "POST",
-            headers: {"Content-Type":"application/json"},
-            body: JSON.stringify({country, limit})
+        const date = new Date(dateStr);
+        return date.toLocaleString('en-IN', {
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
         });
-        const j = await res.json();
-        console.log("Ingest response:", j);
-        return j;
-    } catch (err) {
-        console.warn("Ingest failed", err);
-        return null;
+    } catch {
+        return '-';
     }
 }
 
-// ---------- 2) Fetch realtime and predict ----------
-async function fetchRealtimeAndPredict() {
+// ============================================
+// API CALLS
+// ============================================
+
+async function fetchRecentReadings() {
+    try {
+        const res = await fetch(`${API_BASE}/recent-readings`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        console.log("Loaded recent-readings:", data.length);
+        return Array.isArray(data) ? data : [];
+    } catch (err) {
+        console.error("Failed to fetch recent-readings:", err);
+        return [];
+    }
+}
+
+async function fetchCityStats() {
+    try {
+        const res = await fetch(`${API_BASE}/city-stats`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        cityStats = Array.isArray(data) ? data : [];
+        console.log("Loaded city-stats:", cityStats.length);
+        return cityStats;
+    } catch (err) {
+        console.error("Failed to fetch city-stats:", err);
+        cityStats = [];
+        return [];
+    }
+}
+
+async function fetchRealtime() {
     try {
         const res = await fetch(`${API_BASE}/realtime`);
         if (!res.ok) {
-            console.warn("No realtime data (status):", res.status);
-            // still attempt to load static dataset & anomalies
-            await loadCityStats();
-            await loadAnomalies();
-            return;
+            console.log("Realtime not available, status:", res.status);
+            return [];
         }
-        const rows = await res.json();
-        if (!Array.isArray(rows) || rows.length === 0) {
-            console.warn("Realtime empty");
-            await loadCityStats();
-            await loadAnomalies();
-            return;
+        const data = await res.json();
+        realtimeData = Array.isArray(data) ? data : [];
+        console.log("Loaded realtime rows:", realtimeData.length);
+        return realtimeData;
+    } catch (err) {
+        console.error("Failed to fetch realtime:", err);
+        realtimeData = [];
+        return [];
+    }
+}
+
+async function predictAQI(payload) {
+    try {
+        const res = await fetch(`${API_BASE}/predict`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+            console.warn("Predict HTTP", res.status);
+            return { anomaly: null, unsafe_prob: null, unsafe_label: null };
         }
+        return await res.json();
+    } catch (err) {
+        console.error("Prediction error:", err);
+        return { anomaly: null, unsafe_prob: null, unsafe_label: null };
+    }
+}
 
-        // limit to last N rows to avoid spamming predict endpoint
-        const limited = rows.slice(-150);
+// Uses realtime if available, else recent-readings.
+// For each row (limited) calls /api/predict and builds predictedRows.
+async function fetchRealtimeAndPredict() {
+    // choose base data
+    const realtime = await fetchRealtime();
+    if (realtime.length > 0) {
+        baseRows = realtime;
+    } else {
+        baseRows = await fetchRecentReadings();
+    }
 
-        // call predict endpoint for each row (batch concurrency)
-        const predictions = await Promise.all(limited.map(async (r) => {
-            // build payload expected by backend
+    if (!baseRows.length) {
+        predictedRows = [];
+        return;
+    }
+
+    // Limit number of prediction calls for performance
+    const subset = baseRows.slice(0, 200);
+
+    const withPredictions = await Promise.all(
+        subset.map(async (r) => {
+            const lastUpdate = r.last_update || r.datetime || null;
+            const d = lastUpdate ? new Date(lastUpdate) : new Date();
             const payload = {
-                "PM2.5": r["PM2.5"] ?? r["pm25"] ?? null,
-                "PM10": r["PM10"] ?? r["pm10"] ?? null,
-                "NO2": r["NO2"] ?? r["no2"] ?? null,
-                "SO2": r["SO2"] ?? r["so2"] ?? null,
-                "OZONE": r["OZONE"] ?? r["o3"] ?? null,
-                "CO": r["CO"] ?? r["co"] ?? null,
-                "NH3": r["NH3"] ?? r["nh3"] ?? null,
-                "hour_of_day": r.last_update ? new Date(r.last_update).getHours() : new Date().getHours(),
-                "day_of_week": r.last_update ? new Date(r.last_update).getDay() : new Date().getDay()
+                "PM2.5": r["PM2.5"] ?? r.pm25 ?? null,
+                "PM10": r["PM10"] ?? r.pm10 ?? null,
+                "NO2": r["NO2"] ?? r.no2 ?? null,
+                "SO2": r["SO2"] ?? r.so2 ?? null,
+                "OZONE": r["OZONE"] ?? r.o3 ?? null,
+                "CO": r["CO"] ?? r.co ?? null,
+                "NH3": r["NH3"] ?? r.nh3 ?? null,
+                "hour_of_day": d.getHours(),
+                "day_of_week": d.getDay()
             };
 
-            const p = await fetch(`${API_BASE}/predict`, {
-                method: "POST",
-                headers: {"Content-Type":"application/json"},
-                body: JSON.stringify(payload)
-            }).then(resp => resp.json())
-              .catch(() => ({error: "prediction_failed"}));
+            const prediction = await predictAQI(payload);
+            return { ...r, prediction };
+        })
+    );
 
-            return {...r, prediction: p};
-        }));
-
-        // format for UI
-        aqiData = predictions.map(x => ({
-            city: x.city || x.city || "Unknown",
-            station: x.station || x.location || "Station",
-            AQI_official: x.AQI_official ?? x["PM2.5"] ?? null,
-            PM25: x["PM2.5"],
-            PM10: x["PM10"],
-            NO2: x["NO2"],
-            SO2: x["SO2"],
-            OZONE: x["OZONE"],
-            CO: x["CO"],
-            last_update: x.last_update,
-            iforest_anomaly: x.prediction?.anomaly ? 1 : 0,
-            unsafe_prob: x.prediction?.unsafe_prob ?? null,
-            unsafe_label: x.prediction?.unsafe_label ?? null,
-            AQI_category: getAQICategory(x.AQI_official ?? 0)
-        }));
-
-        renderRecentTable();
-        renderStatsOverview();
-
-    } catch (err) {
-        console.error("Realtime/predict error:", err);
-    }
+    predictedRows = withPredictions;
 }
 
-// ---------- 3) Load city stats (uses cleaned dataset) ----------
-async function loadCityStats() {
-    try {
-        const res = await fetch(`${API_BASE}/city-stats`);
-        const data = await res.json();
-        cityStats = Array.isArray(data) ? data : [];
-        renderCityGrid();
-    } catch (err) {
-        console.error("City stats error", err);
-    }
-}
+// ============================================
+// RENDER FUNCTIONS
+// ============================================
 
-// ---------- 4) Load anomalies (uses cleaned anomalies CSV) ----------
-async function loadAnomalies() {
-    try {
-        const res = await fetch(`${API_BASE}/anomalies`);
-        const data = await res.json();
-        anomalyData = Array.isArray(data) ? data : [];
-        renderAnomalyTable();
-        renderAnomalyStats();
-    } catch (err) {
-        console.error("Anomalies load error", err);
-    }
-}
-
-// ---------- UI renderers ----------
 function renderStatsOverview() {
-    const stats = {good:0, moderate:0, poor:0, severe:0};
-    aqiData.forEach(r => {
-        const cat = r.AQI_category;
-        if (cat === "Good") stats.good++;
-        else if (cat === "Satisfactory" || cat === "Moderate") stats.moderate++;
-        else if (cat === "Poor" || cat === "Very Poor") stats.poor++;
-        else if (cat === "Severe") stats.severe++;
-    });
+    const stats = {
+        good: 0,
+        satisfactory: 0,
+        moderate: 0,
+        poor: 0,
+        veryPoor: 0,
+        severe: 0,
+        unsafeCount: 0,
+        anomalyCount: 0
+    };
+
+    // Use cityStats for city-level categories
+    if (cityStats.length > 0) {
+        cityStats.forEach(city => {
+            const cat = getAQICategory(city.avg_aqi);
+            switch (cat) {
+                case 'Good': stats.good++; break;
+                case 'Satisfactory': stats.satisfactory++; break;
+                case 'Moderate': stats.moderate++; break;
+                case 'Poor': stats.poor++; break;
+                case 'Very Poor': stats.veryPoor++; break;
+                case 'Severe': stats.severe++; break;
+            }
+        });
+    }
+
+    // Use predictions for ML-specific stats
+    if (predictedRows.length > 0) {
+        predictedRows.forEach(row => {
+            const p = row.prediction || {};
+            if (p.unsafe_label === 1) stats.unsafeCount++;
+            if (p.anomaly === true) stats.anomalyCount++;
+        });
+    }
+
     document.getElementById("stat-good").textContent = stats.good;
-    document.getElementById("stat-moderate").textContent = stats.moderate;
-    document.getElementById("stat-poor").textContent = stats.poor;
+    document.getElementById("stat-moderate").textContent = stats.satisfactory + stats.moderate;
+    document.getElementById("stat-poor").textContent = stats.poor + stats.veryPoor;
     document.getElementById("stat-severe").textContent = stats.severe;
-    document.getElementById("last-update-time").textContent = new Date().toLocaleString();
+
+    document.getElementById("stat-ml-unsafe").textContent = stats.unsafeCount;
+    document.getElementById("stat-ml-anomaly").textContent = stats.anomalyCount;
 }
 
-function renderRecentTable() {
-    const tbody = document.getElementById("readings-tbody");
-    if (!tbody) return;
-    tbody.innerHTML = "";
-    aqiData.slice(0,40).forEach(r => {
-        tbody.innerHTML += `
-            <tr>
-                <td>${r.city}</td>
-                <td>${r.station}</td>
-                <td>${r.AQI_official ?? '-'}</td>
-                <td>${r.AQI_category}</td>
-                <td>${r.PM25 ?? '-'}</td>
-                <td>${r.PM10 ?? '-'}</td>
-                <td>${r.last_update ?? '-'}</td>
-                <td><button class="btn-icon" onclick="viewCityDetails('${encodeURIComponent(r.city)}')"><i class="fas fa-eye"></i></button></td>
-            </tr>
-        `;
-    });
-}
-
-function renderCityGrid() {
-    const grid = document.getElementById("city-grid");
+function renderCityCards() {
+    const grid = document.getElementById("cityGrid");
     if (!grid) return;
-    grid.innerHTML = "";
-    cityStats.forEach(city => {
-        grid.innerHTML += `
-            <div class="city-card" onclick="viewCityDetails('${encodeURIComponent(city.city)}')">
+
+    let cityData = [];
+
+    if (cityStats.length > 0) {
+        cityData = cityStats.slice(0, 6).map(city => ({
+            name: city.city,
+            state: 'India',
+            aqi: Math.round(city.avg_aqi || 0),
+            pm25: Math.round(city.avg_pm25 || 0),
+            pm10: Math.round(city.avg_pm10 || 0),
+            no2: Math.round(city.avg_no2 || 0)
+        }));
+    } else if (baseRows.length > 0) {
+        const map = {};
+        baseRows.forEach(r => {
+            if (!r.city) return;
+            if (!map[r.city]) {
+                map[r.city] = {
+                    name: r.city,
+                    state: 'India',
+                    aqi: r.AQI_official || r["PM2.5"] || 0,
+                    pm25: r["PM2.5"] || 0,
+                    pm10: r["PM10"] || 0,
+                    no2: r["NO2"] || 0
+                };
+            }
+        });
+        cityData = Object.values(map).slice(0, 6);
+    }
+
+    if (!cityData.length) {
+        grid.innerHTML = '<p style="text-align: center; color: #64748B; grid-column: 1/-1;">No city data available. Click "Refresh" to load data.</p>';
+        return;
+    }
+
+    grid.innerHTML = cityData.map(city => {
+        const category = getAQICategory(city.aqi);
+        return `
+            <div class="city-card" onclick="viewCityDetails('${encodeURIComponent(city.name)}')">
                 <div class="city-header">
-                    <div class="city-name">${city.city}</div>
-                    <span class="aqi-badge">${Number(city.avg_aqi).toFixed(0)}</span>
+                    <div class="city-info">
+                        <h3>${city.name}</h3>
+                        <p>${city.state}</p>
+                    </div>
+                    <div class="city-aqi">
+                        <div class="city-aqi-value" style="color: ${getCategoryColor(category)}">${city.aqi}</div>
+                        <div class="city-aqi-label" style="color: ${getCategoryColor(category)}">${category}</div>
+                    </div>
                 </div>
-                <div class="city-pollutants">
-                    <div class="pollutant-item"><span>PM2.5</span><strong>${Number(city.avg_pm25).toFixed(1)}</strong></div>
-                    <div class="pollutant-item"><span>PM10</span><strong>${Number(city.avg_pm10).toFixed(1)}</strong></div>
-                    <div class="pollutant-item"><span>NO₂</span><strong>${Number(city.avg_no2).toFixed(1)}</strong></div>
+                <div class="pollutant-list">
+                    <div class="pollutant">
+                        <div class="pollutant-name">PM2.5</div>
+                        <div class="pollutant-value">${city.pm25}</div>
+                    </div>
+                    <div class="pollutant">
+                        <div class="pollutant-name">PM10</div>
+                        <div class="pollutant-value">${city.pm10}</div>
+                    </div>
+                    <div class="pollutant">
+                        <div class="pollutant-name">NO₂</div>
+                        <div class="pollutant-value">${city.no2}</div>
+                    </div>
                 </div>
             </div>
         `;
-    });
+    }).join('');
 }
 
-function renderAnomalyTable() {
-    const tbody = document.getElementById("anomaly-tbody");
+function renderRecentTable() {
+    const tbody = document.getElementById("tableBody");
     if (!tbody) return;
-    tbody.innerHTML = "";
-    anomalyData.slice(0,50).forEach(a => {
-        const methods = `${a.iforest_anomaly ? "Isolation Forest":""} ${a.z_anomaly ? "Z-Score":""}`.trim();
-        tbody.innerHTML += `
+
+    const rows = predictedRows.length > 0 ? predictedRows : baseRows.slice(0, 50);
+
+    if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #64748B;">No data available. Click "Refresh" to load data.</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = rows.slice(0, 50).map(row => {
+        const aqi = row.AQI_official || row["PM2.5"] || 0;
+        const category = getAQICategory(aqi);
+        const categoryClass = category.toLowerCase().replace(' ', '-');
+
+        const p = row.prediction || {};
+        const unsafeLabel = p.unsafe_label === 1 ? "Unsafe" : "Safe";
+        const unsafeProb = p.unsafe_prob != null ? (p.unsafe_prob * 100).toFixed(0) + "%" : "-";
+        const anomaly = p.anomaly === true ? "Yes" : "No";
+
+        return `
             <tr>
-                <td>${a.last_update ?? '-'}</td>
-                <td>${a.city ?? '-'}</td>
-                <td>${a.station ?? '-'}</td>
-                <td>${a.AQI_official ?? '-'}</td>
-                <td>${methods || '-'}</td>
-                <td>${a.zscore ?? '-'}</td>
-                <td><button class="btn-icon" onclick='viewAnomalyDetails(${JSON.stringify(a).replace(/"/g,"&quot;")})'><i class="fas fa-info-circle"></i></button></td>
+                <td><strong>${row.city || 'Unknown'}</strong></td>
+                <td>${row.station || row.location || 'N/A'}</td>
+                <td><strong style="color: ${getCategoryColor(category)}">${Math.round(aqi)}</strong></td>
+                <td><span class="badge ${categoryClass}">${category}</span></td>
+                <td>${Math.round(row["PM2.5"] || 0)}</td>
+                <td>${Math.round(row["PM10"] || 0)}</td>
+                <td>${formatDate(row.last_update)}</td>
+                <td>${unsafeLabel} ${unsafeProb !== "-" ? `(${unsafeProb})` : ""}</td>
+                <td>${anomaly}</td>
             </tr>
         `;
+    }).join('');
+}
+
+function generateForecast(type) {
+    const grid = document.getElementById('forecastGrid');
+    if (!grid) return;
+
+    let num, labels;
+    if (type === "7day") {
+        num = 7;
+        labels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    } else if (type === "24hr") {
+        num = 8;
+        labels = ['Now','3h','6h','9h','12h','15h','18h','21h'];
+    } else {
+        num = 8;
+        labels = ['6h','12h','18h','24h','30h','36h','42h','48h'];
+    }
+
+    let avgAQI = 150;
+    if (cityStats.length > 0) {
+        const s = cityStats.reduce((sum, c) => sum + (c.avg_aqi || 0), 0);
+        avgAQI = s / cityStats.length;
+    } else if (baseRows.length > 0) {
+        const s = baseRows.reduce((sum, r) => sum + (r.AQI_official || r["PM2.5"] || 0), 0);
+        avgAQI = s / baseRows.length;
+    }
+
+    const forecasts = Array.from({ length: num }, (_, i) => {
+        const variation = (Math.random() - 0.5) * 80;
+        const aqi = Math.max(20, Math.round(avgAQI + variation));
+        const cat = getAQICategory(aqi);
+        return {
+            label: labels[i] || `Step ${i+1}`,
+            aqi,
+            category: cat,
+            pm25: Math.round(aqi * 0.5),
+            pm10: Math.round(aqi * 0.8)
+        };
+    });
+
+    grid.innerHTML = forecasts.map(f => `
+        <div class="forecast-card">
+            <div class="forecast-day">${f.label}</div>
+            <div class="forecast-aqi" style="color: ${getCategoryColor(f.category)}">${f.aqi}</div>
+            <span class="forecast-category badge ${f.category.toLowerCase().replace(' ', '-')}">${f.category}</span>
+            <div class="forecast-details">
+                <div>PM2.5: ${f.pm25}</div>
+                <div>PM10: ${f.pm10}</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function switchForecast(type) {
+    document.querySelectorAll('.time-btn').forEach(btn => btn.classList.remove('active'));
+    if (event && event.target) {
+        event.target.classList.add('active');
+    }
+    generateForecast(type);
+}
+
+// ============================================
+// SEARCH
+// ============================================
+
+function setupSearchAutocomplete() {
+    const input = document.getElementById('citySearch');
+    const suggestions = document.getElementById('suggestions');
+    if (!input || !suggestions) return;
+
+    input.addEventListener('input', (e) => {
+        const value = e.target.value.toLowerCase();
+        if (!value) {
+            suggestions.classList.remove('active');
+            return;
+        }
+
+        const fromStats = cityStats.map(c => c.city);
+        const fromBase = baseRows.map(r => r.city);
+        const fromReal = realtimeData.map(r => r.city);
+
+        allCities = [...new Set([...fromStats, ...fromBase, ...fromReal])].filter(Boolean);
+        const matches = allCities
+            .filter(c => c.toLowerCase().includes(value))
+            .slice(0, 10);
+
+        if (!matches.length) {
+            suggestions.classList.remove('active');
+            return;
+        }
+
+        suggestions.innerHTML = matches.map(city =>
+            `<div class="suggestion-item" onclick="selectCity('${encodeURIComponent(city)}')">${city}</div>`
+        ).join('');
+        suggestions.classList.add('active');
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.search-container')) {
+            suggestions.classList.remove('active');
+        }
     });
 }
 
-function renderAnomalyStats() {
-    document.getElementById("anomaly-count").textContent = anomalyData.length;
-    const ratio = aqiData.length ? ((anomalyData.length / aqiData.length) * 100).toFixed(1) : 0;
-    document.getElementById("anomaly-rate").textContent = `${ratio}%`;
-}
-
-// ---------- small utilities & event handlers ----------
-function viewCityDetails(city) {
-    // navigate to city detail page (works when Flask route exists)
+function selectCity(city) {
     const decoded = decodeURIComponent(city);
-    window.location.href = `/city/${encodeURIComponent(decoded)}`;
-}
-function viewAnomalyDetails(row) {
-    alert(`Anomaly details:\nCity: ${row.city}\nStation: ${row.station}\nAQI: ${row.AQI_official}`);
+    const input = document.getElementById('citySearch');
+    if (input) input.value = decoded;
+    const suggestions = document.getElementById('suggestions');
+    if (suggestions) suggestions.classList.remove('active');
+    viewCityDetails(decoded);
 }
 
-// ---------- init & auto-refresh ----------
+function searchCity() {
+    const input = document.getElementById('citySearch');
+    if (!input) return;
+    const city = input.value.trim();
+    if (city) {
+        viewCityDetails(city);
+    }
+}
+
+function viewCityDetails(city) {
+    window.location.href = `/city/${encodeURIComponent(city)}`;
+}
+
+// ============================================
+// REFRESH / INIT
+// ============================================
+
+async function refreshData() {
+    const btn = event?.target?.closest('button');
+    if (btn) btn.disabled = true;
+    showLoading();
+    try {
+        await fetchCityStats();
+        await fetchRealtimeAndPredict();
+        renderStatsOverview();
+        renderCityCards();
+        renderRecentTable();
+        generateForecast('7day');
+        setupSearchAutocomplete();
+        console.log("✅ Manual refresh complete");
+    } catch (err) {
+        console.error("Refresh failed:", err);
+        alert("Failed to refresh data. Check backend and try again.");
+    } finally {
+        hideLoading();
+        if (btn) btn.disabled = false;
+    }
+}
+
 async function initDashboard() {
-    // initial load: try ingest -> then fetch realtime/predict and others
-    await triggerIngest();            // on-demand fetch from OpenAQ (optional)
-    await fetchRealtimeAndPredict();  // fetch realtime file + predict
-    await loadCityStats();            // aggregated stats from cleaned dataset
-    await loadAnomalies();            // anomalies from cleaned dataset
-
-    // auto refresh every 5 minutes (300000ms). adjust as needed.
-    setInterval(async () => {
-        console.log("Auto-refreshing realtime/predictions...");
-        await triggerIngest();          // optional - you can remove to avoid repeated ingest
+    showLoading();
+    try {
+        console.log("🚀 Initializing dashboard...");
+        await fetchCityStats();
         await fetchRealtimeAndPredict();
-        await loadAnomalies();
-    }, 300000);
+        renderStatsOverview();
+        renderCityCards();
+        renderRecentTable();
+        generateForecast('7day');
+        setupSearchAutocomplete();
+        console.log("✅ Dashboard initialized");
+
+        setInterval(async () => {
+            console.log("🔄 Auto-refreshing base + predictions...");
+            await fetchCityStats();
+            await fetchRealtimeAndPredict();
+            renderStatsOverview();
+            renderCityCards();
+            renderRecentTable();
+        }, 300000); // 5 min
+    } catch (err) {
+        console.error("Dashboard init failed:", err);
+    } finally {
+        hideLoading();
+    }
 }
 
-// Wire refresh button if present
-document.addEventListener("DOMContentLoaded", () => {
-    const refreshBtn = document.getElementById("refresh-btn");
-    if (refreshBtn) refreshBtn.addEventListener("click", async () => {
-        refreshBtn.disabled = true;
-        await triggerIngest();
-        await fetchRealtimeAndPredict();
-        await loadAnomalies();
-        refreshBtn.disabled = false;
-    });
-    initDashboard();
-});
+document.addEventListener("DOMContentLoaded", initDashboard);

@@ -9,13 +9,11 @@ import requests
 from datetime import datetime
 import joblib
 import subprocess
-import json
 
-# -----------------------------------------
-# JSON-SAFE CONVERSION (fixes bool/NaN issues)
-# -----------------------------------------
+# ---------------------------------------------------
+# JSON SAFE CONVERSION
+# ---------------------------------------------------
 def json_safe(x):
-    """Convert numpy + NaN values to JSON-safe Python types."""
     if pd.isna(x):
         return None
     if isinstance(x, (np.bool_, bool)):
@@ -26,9 +24,10 @@ def json_safe(x):
         return float(x)
     return x
 
-# -----------------------------------------
+
+# ---------------------------------------------------
 # PATHS
-# -----------------------------------------
+# ---------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATES = os.path.join(BASE_DIR, "dashboard", "templates")
 STATIC = os.path.join(BASE_DIR, "dashboard", "static")
@@ -38,86 +37,95 @@ MODEL_DIR = os.path.join(BASE_DIR, "backend", "ml", "models")
 app = Flask(__name__, template_folder=TEMPLATES, static_folder=STATIC)
 CORS(app)
 
-# -----------------------------------------
-# DATASET FILE PATHS
-# -----------------------------------------
+
+# ---------------------------------------------------
+# FILES
+# ---------------------------------------------------
 DATA_CLEAN = os.path.join(DATASET_DIR, "cleaned_aqi_data.csv")
 DATA_ANOM = os.path.join(DATASET_DIR, "cleaned_aqi_with_anomalies.csv")
-DATA_PCA = os.path.join(DATASET_DIR, "cleaned_aqi_pca.csv")
-REALTIME = os.path.join(DATASET_DIR, "realtime_data.csv")
+DATA_PCA  = os.path.join(DATASET_DIR, "cleaned_aqi_pca.csv")
+REALTIME  = os.path.join(DATASET_DIR, "realtime_data.csv")
 
 
-# -----------------------------------------
-# SAFE LOADER
-# -----------------------------------------
-def safe_load(path, name):
+# ---------------------------------------------------
+# FAST DATA LOADER
+# ---------------------------------------------------
+def safe_load(path, label):
     if not os.path.exists(path):
-        print(f"❌ {name} NOT FOUND → {path}")
+        print(f"❌ Missing dataset: {label}")
         return pd.DataFrame()
-    print(f"✅ Loaded {name} → {path}")
+    print(f"📁 Loaded dataset: {label}")
     return pd.read_csv(path)
 
 
 df_clean = safe_load(DATA_CLEAN, "cleaned_aqi_data.csv")
-df_anom = safe_load(DATA_ANOM, "cleaned_aqi_with_anomalies.csv")
-df_pca = safe_load(DATA_PCA, "cleaned_aqi_pca.csv")
+df_anom  = safe_load(DATA_ANOM, "cleaned_aqi_with_anomalies.csv")
+df_pca   = safe_load(DATA_PCA, "cleaned_aqi_pca.csv")
 
-# -----------------------------------------
+
+# ---------------------------------------------------
 # LOAD MODELS
-# -----------------------------------------
+# ---------------------------------------------------
+print("\n🔍 Loading ML models...")
+
 SCALER = None
 FEATURES = None
 ISO_MODEL = None
 CLASS_MODEL = None
 
 for fname in ["scaler.pkl", "features.pkl", "isolation_forest.pkl", "aqi_classifier.pkl"]:
-    p = os.path.join(MODEL_DIR, fname)
-    if os.path.exists(p):
-        print("Loading model:", fname)
-        obj = joblib.load(p)
+    file_path = os.path.join(MODEL_DIR, fname)
+    if os.path.exists(file_path):
+        print(f"✅ Loaded {fname}")
+        obj = joblib.load(file_path)
         if fname == "scaler.pkl": SCALER = obj
         elif fname == "features.pkl": FEATURES = obj
         elif fname == "isolation_forest.pkl": ISO_MODEL = obj
         elif fname == "aqi_classifier.pkl": CLASS_MODEL = obj
     else:
-        print("Model file missing:", p)
+        print(f"❌ Missing model file: {fname}")
 
 
-# -----------------------------------------
+# ---------------------------------------------------
 # FEATURE VECTOR BUILDER
-# -----------------------------------------
+# ---------------------------------------------------
 def make_feature_vector(payload):
     if FEATURES is None:
-        raise RuntimeError("FEATURES not loaded. Train model first.")
-    vec = []
+        raise RuntimeError("FEATURES.pkl not loaded. Train models first.")
+
+    vector = []
     for f in FEATURES:
-        v = payload.get(f, payload.get(f.replace(".", ""), 0))
-        try: vec.append(float(v))
-        except: vec.append(0.0)
-    return np.array(vec).reshape(1, -1)
+        val = payload.get(f, payload.get(f.replace(".", ""), 0))
+        try:
+            vector.append(float(val))
+        except:
+            vector.append(0.0)
+
+    return np.array(vector).reshape(1, -1)
 
 
-# -----------------------------------------
-# PAGES
-# -----------------------------------------
+# ---------------------------------------------------
+# ROUTES — PAGES
+# ---------------------------------------------------
 @app.route("/")
-def home_page():
+def home():
     return render_template("index.html")
 
 @app.route("/city/<name>")
-def city_detail(name):
+def city_page(name):
     return render_template("city_detail.html")
 
+
 @app.route("/static/<path:path>")
-def static_files(path):
+def serve_static(path):
     return send_from_directory(app.static_folder, path)
 
 
-# -----------------------------------------
-# API — RECENT READINGS
-# -----------------------------------------
+# ---------------------------------------------------
+# ROUTES — DATA APIS
+# ---------------------------------------------------
 @app.get("/api/recent-readings")
-def api_recent():
+def recent_readings():
     df = safe_load(DATA_CLEAN, "cleaned_aqi_data.csv")
     if df.empty:
         return jsonify([])
@@ -126,38 +134,33 @@ def api_recent():
         df["last_update"] = pd.to_datetime(df["last_update"], errors="coerce")
 
     df = df.sort_values("last_update", ascending=False)
-    return jsonify([{k: json_safe(v) for k, v in row.items()} for _, row in df.iterrows()])
+
+    return jsonify([{k: json_safe(v) for k, v in row.items()}
+                    for _, row in df.iterrows()])
 
 
-# -----------------------------------------
-# API — ANOMALIES
-# -----------------------------------------
 @app.get("/api/anomalies")
-def api_anomalies():
+def anomalies():
     df = safe_load(DATA_ANOM, "cleaned_aqi_with_anomalies.csv")
     if df.empty:
         return jsonify([])
 
-    df = df[(df.get("iforest_anomaly") == 1) | (df.get("z_anomaly") == True)]
-    return jsonify([{k: json_safe(v) for k, v in row.items()} for _, row in df.iterrows()])
+    df = df[(df.get("iforest_anomaly") == 1) |
+            (df.get("z_anomaly") == True)]
+
+    return jsonify([{k: json_safe(v) for k, v in row.items()}
+                    for _, row in df.iterrows()])
 
 
-# -----------------------------------------
-# API — PCA
-# -----------------------------------------
 @app.get("/api/pca-data")
-def api_pca_data():
+def pca_data():
     df = safe_load(DATA_PCA, "cleaned_aqi_pca.csv")
-    if df.empty:
-        return jsonify([])
-    return jsonify([{k: json_safe(v) for k, v in row.items()} for _, row in df.iterrows()])
+    return jsonify([{k: json_safe(v) for k, v in row.items()}
+                    for _, row in df.iterrows()])
 
 
-# -----------------------------------------
-# API — CITY STATS
-# -----------------------------------------
 @app.get("/api/city-stats")
-def api_city_stats():
+def city_stats():
     df = safe_load(DATA_CLEAN, "cleaned_aqi_data.csv")
     if df.empty:
         return jsonify([])
@@ -176,89 +179,95 @@ def api_city_stats():
         "NO2": "avg_no2"
     }, inplace=True)
 
-    return jsonify([{k: json_safe(v) for k, v in row.items()} for _, row in stats.iterrows()])
+    return jsonify([{k: json_safe(v) for k, v in row.items()}
+                    for _, row in stats.iterrows()])
 
 
-# -----------------------------------------
-# API — REALTIME DATA
-# -----------------------------------------
 @app.get("/api/realtime")
-def api_realtime():
+def realtime():
     if not os.path.exists(REALTIME):
         return jsonify([])
     df = pd.read_csv(REALTIME)
-    return jsonify([{k: json_safe(v) for k, v in row.items()} for _, row in df.iterrows()])
+    return jsonify([{k: json_safe(v) for k, v in row.items()}
+                    for _, row in df.iterrows()])
 
 
-# -----------------------------------------
-# API — RUN INGEST SCRIPT (WAQI)
-# -----------------------------------------
+# ---------------------------------------------------
+# RUN INGEST SCRIPT
+# ---------------------------------------------------
 @app.post("/api/ingest")
-def api_ingest():
+def ingest():
     try:
         script_path = os.path.join(BASE_DIR, "backend", "cron", "hourly_ingest.py")
+        output = subprocess.check_output(
+            ["python", script_path], text=True
+        )
+        return jsonify({"status": "ok", "output": output})
 
-        print("Running ingest:", script_path)
-
-        result = subprocess.check_output(["python", script_path], stderr=subprocess.STDOUT, text=True)
-        print("Ingest output:", result)
-
-        return jsonify({"status": "ok", "output": result})
-
-    except subprocess.CalledProcessError as e:
-        return jsonify({"error": e.output}), 500
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
-# -----------------------------------------
-# API — PREDICT
-# -----------------------------------------
+# ---------------------------------------------------
+# ML PREDICTION API
+# ---------------------------------------------------
 @app.post("/api/predict")
-def api_predict():
+def predict():
     payload = request.get_json(force=True)
     if not payload:
-        return jsonify({"error": "No payload"}), 400
+        return jsonify({"error": "Empty payload"}), 400
 
-    out = {"anomaly": None, "unsafe_prob": None, "unsafe_label": None}
+    result = {"anomaly": None, "unsafe_prob": None, "unsafe_label": None}
 
-    # Anomaly detection
+    # -------------------------
+    # Anomaly Detection
+    # -------------------------
     try:
         if ISO_MODEL and SCALER:
             X = make_feature_vector(payload)
             Xs = SCALER.transform(X)
-            pred = ISO_MODEL.predict(Xs)
-            out["anomaly"] = bool(pred[0] == -1)
-    except:
-        out["anomaly"] = None
+            result["anomaly"] = bool(ISO_MODEL.predict(Xs)[0] == -1)
+    except Exception as e:
+        print("Anomaly error:", e)
 
-    # Classifier
+    # -------------------------
+    # Classifier Prediction
+    # -------------------------
     try:
         if CLASS_MODEL and SCALER:
             X = make_feature_vector(payload)
             Xs = SCALER.transform(X)
-            prob = CLASS_MODEL.predict_proba(Xs)[0]
-            out["unsafe_prob"] = float(prob[1])
-            out["unsafe_label"] = int(CLASS_MODEL.predict(Xs)[0])
-            return jsonify({k: json_safe(v) for k, v in out.items()})
-    except:
-        pass
 
-    # Fallback simple rule
-    pm25 = float(payload.get("PM2.5", 0) or 0)
-    pm10 = float(payload.get("PM10", 0) or 0)
+            prob = CLASS_MODEL.predict_proba(Xs)[0][1]
+            label = CLASS_MODEL.predict(Xs)[0]
+
+            result["unsafe_prob"] = float(prob)
+            result["unsafe_label"] = int(label)
+
+            return jsonify({k: json_safe(v) for k, v in result.items()})
+    except Exception as e:
+        print("Classifier error:", e)
+
+    # -------------------------
+    # FALLBACK RULE (if models unavailable)
+    # -------------------------
+    pm25 = float(payload.get("PM2.5", 0))
+    pm10 = float(payload.get("PM10", 0))
 
     score = 0
     if pm25 >= 60: score += 0.7
     if pm10 >= 100: score += 0.5
 
-    out["unsafe_prob"] = min(1.0, score)
-    out["unsafe_label"] = 1 if score > 0.4 else 0
-    out["anomaly"] = out["anomaly"] or False
+    result["unsafe_prob"] = min(1.0, score)
+    result["unsafe_label"] = 1 if score > 0.4 else 0
+    result["anomaly"] = result["anomaly"] or False
 
-    return jsonify({k: json_safe(v) for k, v in out.items()})
+    return jsonify({k: json_safe(v) for k, v in result.items()})
 
 
-# -----------------------------------------
-# RUN
-# -----------------------------------------
+# ---------------------------------------------------
+# RUN SERVER
+# ---------------------------------------------------
 if __name__ == "__main__":
+    print("\n🚀 Flask server running at http://127.0.0.1:5000/")
     app.run(debug=True)

@@ -4,323 +4,685 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart AQI Monitoring System</title>
-    <link rel="stylesheet" href="../static/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --aqi-good: #00C853;
+            --aqi-satisfactory: #FFD600;
+            --aqi-moderate: #FF6D00;
+            --aqi-poor: #DD2C00;
+            --aqi-very-poor: #7B1FA2;
+            --aqi-severe: #4A148C;
+            --primary: #1976D2;
+            --bg-primary: #F8FAFC;
+            --bg-card: #FFFFFF;
+            --text-primary: #1E293B;
+            --text-secondary: #64748B;
+            --border: #E2E8F0;
+            --shadow: 0 1px 3px rgba(0,0,0,0.1);
+            --shadow-lg: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem 0;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .nav {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .nav-link {
+            color: white;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            transition: all 0.3s;
+            font-weight: 500;
+        }
+
+        .nav-link:hover, .nav-link.active {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .hero-search {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 4rem 2rem;
+            text-align: center;
+            color: white;
+        }
+
+        .hero-search h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+        }
+
+        .hero-search p {
+            font-size: 1.25rem;
+            opacity: 0.9;
+            margin-bottom: 2rem;
+        }
+
+        .search-container {
+            max-width: 700px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .search-box {
+            display: flex;
+            background: white;
+            border-radius: 50px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 1.25rem 2rem;
+            border: none;
+            font-size: 1.125rem;
+            outline: none;
+            color: var(--text-primary);
+        }
+
+        .search-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 1.25rem 2.5rem;
+            font-size: 1.125rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .search-btn:hover {
+            background: #5568d3;
+        }
+
+        .search-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .search-suggestions {
+            background: white;
+            margin-top: 1rem;
+            border-radius: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            display: none;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .search-suggestions.active {
+            display: block;
+        }
+
+        .suggestion-item {
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text-primary);
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .suggestion-item:hover {
+            background: var(--bg-primary);
+        }
+
+        .main-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .section {
+            margin-bottom: 3rem;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .section-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            padding: 2rem;
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            transition: all 0.3s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .stat-icon {
+            width: 70px;
+            height: 70px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+        }
+
+        .stat-card.good .stat-icon {
+            background: rgba(0,200,83,0.1);
+            color: var(--aqi-good);
+        }
+
+        .stat-card.moderate .stat-icon {
+            background: rgba(255,109,0,0.1);
+            color: var(--aqi-moderate);
+        }
+
+        .stat-card.poor .stat-icon {
+            background: rgba(221,44,0,0.1);
+            color: var(--aqi-poor);
+        }
+
+        .stat-card.severe .stat-icon {
+            background: rgba(74,20,140,0.1);
+            color: var(--aqi-severe);
+        }
+
+        .stat-card.ml {
+            border-left: 4px solid var(--primary);
+        }
+
+        .stat-content h3 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-content p {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .forecast-section {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+            margin-bottom: 2rem;
+        }
+
+        .forecast-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .forecast-header h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+        }
+
+        .time-selector {
+            display: flex;
+            gap: 0.5rem;
+            background: var(--bg-primary);
+            padding: 0.5rem;
+            border-radius: 12px;
+        }
+
+        .time-btn {
+            padding: 0.5rem 1.25rem;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            color: var(--text-secondary);
+            transition: all 0.3s;
+        }
+
+        .time-btn.active {
+            background: white;
+            color: var(--primary);
+            box-shadow: var(--shadow);
+        }
+
+        .forecast-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 1rem;
+        }
+
+        .forecast-card {
+            background: var(--bg-primary);
+            padding: 1.5rem;
+            border-radius: 16px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .forecast-card:hover {
+            transform: translateY(-4px);
+            background: #E0E7FF;
+        }
+
+        .forecast-day {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--text-secondary);
+        }
+
+        .forecast-aqi {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin: 0.5rem 0;
+        }
+
+        .forecast-category {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-top: 0.5rem;
+        }
+
+        .forecast-details {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.5rem;
+            margin-top: 1rem;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+        }
+
+        .city-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .city-card {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .city-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .city-card:hover {
+            transform: translateY(-8px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .city-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1.5rem;
+        }
+
+        .city-info h3 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .city-info p {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        .city-aqi {
+            text-align: right;
+        }
+
+        .city-aqi-value {
+            font-size: 3rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .city-aqi-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            font-weight: 600;
+            margin-top: 0.25rem;
+        }
+
+        .pollutant-list {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+        }
+
+        .pollutant {
+            text-align: center;
+        }
+
+        .pollutant-name {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.25rem;
+        }
+
+        .pollutant-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .table-card {
+            background: var(--bg-card);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: var(--shadow);
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 1rem;
+            background: var(--bg-primary);
+            font-weight: 600;
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tbody tr:hover {
+            background: var(--bg-primary);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge.good { background: rgba(0,200,83,0.1); color: var(--aqi-good); }
+        .badge.satisfactory { background: rgba(255,214,0,0.1); color: #F57F17; }
+        .badge.moderate { background: rgba(255,109,0,0.1); color: var(--aqi-moderate); }
+        .badge.poor { background: rgba(221,44,0,0.1); color: var(--aqi-poor); }
+        .badge.very-poor { background: rgba(123,31,162,0.1); color: var(--aqi-very-poor); }
+        .badge.severe { background: rgba(74,20,140,0.1); color: var(--aqi-severe); }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            flex-direction: column;
+        }
+
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-overlay p {
+            color: white;
+            margin-top: 1rem;
+            font-size: 1.125rem;
+        }
+
+        @media (max-width: 768px) {
+            .hero-search h1 { font-size: 2rem; }
+            .nav { display: none; }
+            .forecast-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+            .stats-grid { grid-template-columns: 1fr; }
+        }
+    </style>
 </head>
 <body>
-    <!-- Navigation Header -->
     <header class="header">
-        <div class="container">
+        <div class="header-content">
             <div class="logo">
                 <i class="fas fa-wind"></i>
-                <h1>Smart AQI System</h1>
+                <span>Smart AQI</span>
             </div>
             <nav class="nav">
                 <a href="#overview" class="nav-link active">Overview</a>
-                <a href="#anomalies" class="nav-link">Anomalies</a>
-                <a href="#pca" class="nav-link">PCA Analysis</a>
-                <a href="#cities" class="nav-link">City Details</a>
-                <a href="#reports" class="nav-link">Reports</a>
+                <a href="#forecast" class="nav-link">Forecast</a>
+                <a href="#cities" class="nav-link">Cities</a>
             </nav>
         </div>
     </header>
 
-    <!-- Main Dashboard -->
+    <section class="hero-search">
+        <h1>Air Quality Index Monitor</h1>
+        <p>Real-time air quality, anomaly detection and ML-based health risk prediction</p>
+        <div class="search-container">
+            <div class="search-box">
+                <input type="text" class="search-input" id="citySearch" placeholder="Search for a city..." autocomplete="off">
+                <button class="search-btn" onclick="searchCity()">
+                    <i class="fas fa-search"></i> Search
+                </button>
+            </div>
+            <div class="search-suggestions" id="suggestions"></div>
+        </div>
+    </section>
+
     <main class="main-content">
-        <!-- Overview Section -->
+        <!-- Overview + ML stats -->
         <section id="overview" class="section">
-            <div class="container">
-                <h2 class="section-title">Real-Time AQI Overview</h2>
-                
-                <!-- Stats Cards -->
-                <div class="stats-grid">
-                    <div class="stat-card good">
-                        <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
-                        <div class="stat-content">
-                            <h3 id="stat-good">0</h3>
-                            <p>Good Quality</p>
-                        </div>
-                    </div>
-                    <div class="stat-card moderate">
-                        <div class="stat-icon"><i class="fas fa-exclamation-circle"></i></div>
-                        <div class="stat-content">
-                            <h3 id="stat-moderate">0</h3>
-                            <p>Moderate</p>
-                        </div>
-                    </div>
-                    <div class="stat-card poor">
-                        <div class="stat-icon"><i class="fas fa-times-circle"></i></div>
-                        <div class="stat-content">
-                            <h3 id="stat-poor">0</h3>
-                            <p>Poor/Very Poor</p>
-                        </div>
-                    </div>
-                    <div class="stat-card severe">
-                        <div class="stat-icon"><i class="fas fa-skull-crossbones"></i></div>
-                        <div class="stat-content">
-                            <h3 id="stat-severe">0</h3>
-                            <p>Severe</p>
-                        </div>
+            <div class="section-header">
+                <h2 class="section-title">Current Air Quality & ML Insights</h2>
+                <button class="search-btn" onclick="refreshData()">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+            
+            <div class="stats-grid">
+                <div class="stat-card good">
+                    <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+                    <div class="stat-content">
+                        <h3 id="stat-good">0</h3>
+                        <p>Good Quality Cities</p>
                     </div>
                 </div>
-
-                <!-- Live AQI Map -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3>Live AQI Heatmap</h3>
-                        <div class="filter-group">
-                            <select id="state-filter" class="filter-select">
-                                <option value="">All States</option>
-                            </select>
-                            <button id="refresh-btn" class="btn-primary">
-                                <i class="fas fa-sync-alt"></i> Refresh
-                            </button>
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        <div id="aqi-heatmap" class="chart-container"></div>
+                <div class="stat-card moderate">
+                    <div class="stat-icon"><i class="fas fa-exclamation-circle"></i></div>
+                    <div class="stat-content">
+                        <h3 id="stat-moderate">0</h3>
+                        <p>Moderate / Satisfactory Cities</p>
                     </div>
                 </div>
-
-                <!-- Recent Readings Table -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3>Latest Readings</h3>
-                        <input type="text" id="search-city" placeholder="Search city..." class="search-input">
+                <div class="stat-card poor">
+                    <div class="stat-icon"><i class="fas fa-times-circle"></i></div>
+                    <div class="stat-content">
+                        <h3 id="stat-poor">0</h3>
+                        <p>Poor / Very Poor Cities</p>
                     </div>
-                    <div class="card-body">
-                        <div class="table-wrapper">
-                            <table class="data-table" id="recent-readings-table">
-                                <thead>
-                                    <tr>
-                                        <th>City</th>
-                                        <th>Station</th>
-                                        <th>AQI</th>
-                                        <th>Category</th>
-                                        <th>PM2.5</th>
-                                        <th>PM10</th>
-                                        <th>Last Update</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="readings-tbody">
-                                    <!-- Populated by JS -->
-                                </tbody>
-                            </table>
-                        </div>
+                </div>
+                <div class="stat-card severe">
+                    <div class="stat-icon"><i class="fas fa-skull-crossbones"></i></div>
+                    <div class="stat-content">
+                        <h3 id="stat-severe">0</h3>
+                        <p>Severe AQI Cities</p>
+                    </div>
+                </div>
+                <!-- ML-focused cards -->
+                <div class="stat-card ml">
+                    <div class="stat-icon"><i class="fas fa-brain"></i></div>
+                    <div class="stat-content">
+                        <h3 id="stat-ml-unsafe">0</h3>
+                        <p>ML-Predicted Unsafe Readings (Last Batch)</p>
+                    </div>
+                </div>
+                <div class="stat-card ml">
+                    <div class="stat-icon"><i class="fas fa-radiation-alt"></i></div>
+                    <div class="stat-content">
+                        <h3 id="stat-ml-anomaly">0</h3>
+                        <p>Anomalies Detected by Isolation Forest</p>
                     </div>
                 </div>
             </div>
         </section>
 
-        <!-- Anomaly Detection Section -->
-        <section id="anomalies" class="section">
-            <div class="container">
-                <h2 class="section-title">Anomaly Detection Dashboard</h2>
-                
-                <div class="info-banner">
-                    <i class="fas fa-info-circle"></i>
-                    <p>Using Isolation Forest and Z-score methods to detect unusual pollution patterns</p>
-                </div>
-
-                <!-- Anomaly Summary -->
-                <div class="stats-grid">
-                    <div class="stat-card anomaly">
-                        <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
-                        <div class="stat-content">
-                            <h3 id="anomaly-count">0</h3>
-                            <p>Anomalies Detected (24h)</p>
-                        </div>
-                    </div>
-                    <div class="stat-card info">
-                        <div class="stat-icon"><i class="fas fa-chart-line"></i></div>
-                        <div class="stat-content">
-                            <h3 id="anomaly-rate">0%</h3>
-                            <p>Anomaly Rate</p>
-                        </div>
+        <!-- Forecast (simple ML-like simulation) -->
+        <section id="forecast" class="section">
+            <div class="forecast-section">
+                <div class="forecast-header">
+                    <h2><i class="fas fa-calendar-week"></i> AQI Forecast (Pattern-based)</h2>
+                    <div class="time-selector">
+                        <button class="time-btn active" onclick="switchForecast('7day')">7 Days</button>
+                        <button class="time-btn" onclick="switchForecast('24hr')">24 Hours</button>
+                        <button class="time-btn" onclick="switchForecast('48hr')">48 Hours</button>
                     </div>
                 </div>
-
-                <!-- Anomaly Detection Methods -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3>Detection Method Comparison</h3>
-                        <div class="toggle-group">
-                            <button class="toggle-btn active" data-method="both">Both</button>
-                            <button class="toggle-btn" data-method="iforest">Isolation Forest</button>
-                            <button class="toggle-btn" data-method="zscore">Z-Score</button>
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        <div id="anomaly-timeline-chart" class="chart-container"></div>
-                    </div>
-                </div>
-
-                <!-- Detected Anomalies Table -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3>Detected Anomalies</h3>
-                        <select id="anomaly-filter" class="filter-select">
-                            <option value="all">All Anomalies</option>
-                            <option value="iforest">Isolation Forest Only</option>
-                            <option value="zscore">Z-Score Only</option>
-                            <option value="both">Both Methods</option>
-                        </select>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-wrapper">
-                            <table class="data-table" id="anomaly-table">
-                                <thead>
-                                    <tr>
-                                        <th>Timestamp</th>
-                                        <th>City</th>
-                                        <th>Station</th>
-                                        <th>AQI</th>
-                                        <th>Detection Method</th>
-                                        <th>Z-Score</th>
-                                        <th>Details</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="anomaly-tbody">
-                                    <!-- Populated by JS -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
+                <div class="forecast-grid" id="forecastGrid"></div>
             </div>
         </section>
 
-        <!-- PCA Analysis Section -->
-        <section id="pca" class="section">
-            <div class="container">
-                <h2 class="section-title">PCA Dimensionality Reduction</h2>
-                
-                <div class="info-banner">
-                    <i class="fas fa-info-circle"></i>
-                    <p>Principal Component Analysis reduces pollutant features into 2D/3D space for visualization</p>
-                </div>
-
-                <!-- PCA Variance Explained -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3>Explained Variance</h3>
-                    </div>
-                    <div class="card-body">
-                        <div id="variance-chart" class="chart-container small"></div>
-                        <div class="pca-stats">
-                            <div class="pca-stat">
-                                <label>PC1 Variance:</label>
-                                <span id="pc1-var">0%</span>
-                            </div>
-                            <div class="pca-stat">
-                                <label>PC2 Variance:</label>
-                                <span id="pc2-var">0%</span>
-                            </div>
-                            <div class="pca-stat">
-                                <label>PC3 Variance:</label>
-                                <span id="pc3-var">0%</span>
-                            </div>
-                            <div class="pca-stat">
-                                <label>Cumulative:</label>
-                                <span id="cumulative-var">0%</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- PCA Visualization -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3>PCA Scatter Plot</h3>
-                        <div class="toggle-group">
-                            <button class="toggle-btn active" data-view="2d">2D View</button>
-                            <button class="toggle-btn" data-view="3d">3D View</button>
-                        </div>
-                    </div>
-                    <div class="card-body">
-                        <div id="pca-scatter" class="chart-container large"></div>
-                        <div class="legend-container">
-                            <div class="legend-item">
-                                <span class="legend-color" style="background: #00C853"></span>
-                                <span>Good</span>
-                            </div>
-                            <div class="legend-item">
-                                <span class="legend-color" style="background: #FFD600"></span>
-                                <span>Satisfactory</span>
-                            </div>
-                            <div class="legend-item">
-                                <span class="legend-color" style="background: #FF6D00"></span>
-                                <span>Moderate</span>
-                            </div>
-                            <div class="legend-item">
-                                <span class="legend-color" style="background: #DD2C00"></span>
-                                <span>Poor</span>
-                            </div>
-                            <div class="legend-item">
-                                <span class="legend-color" style="background: #7B1FA2"></span>
-                                <span>Very Poor</span>
-                            </div>
-                            <div class="legend-item">
-                                <span class="legend-color" style="background: #4A148C"></span>
-                                <span>Severe</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- City Details Section -->
+        <!-- City cards -->
         <section id="cities" class="section">
-            <div class="container">
-                <h2 class="section-title">City-wise Analysis</h2>
-                
-                <div class="city-grid" id="city-grid">
-                    <!-- Populated by JS -->
-                </div>
+            <div class="section-header">
+                <h2 class="section-title">Major Cities (Aggregated from Dataset)</h2>
             </div>
+            <div class="city-grid" id="cityGrid"></div>
         </section>
 
-        <!-- Reports Section -->
-        <section id="reports" class="section">
-            <div class="container">
-                <h2 class="section-title">Generated Reports</h2>
-                
-                <div class="card">
-                    <div class="card-header">
-                        <h3>Daily Reports Archive</h3>
-                        <button id="generate-report-btn" class="btn-primary">
-                            <i class="fas fa-file-pdf"></i> Generate New Report
-                        </button>
-                    </div>
-                    <div class="card-body">
-                        <div class="reports-list" id="reports-list">
-                            <!-- Populated by JS -->
-                        </div>
-                    </div>
+        <!-- Latest readings table -->
+        <section class="section">
+            <div class="table-card">
+                <h2 style="margin-bottom: 1.5rem;">Latest Readings with ML Predictions</h2>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>City</th>
+                                <th>Station</th>
+                                <th>AQI</th>
+                                <th>Category</th>
+                                <th>PM2.5</th>
+                                <th>PM10</th>
+                                <th>Last Update</th>
+                                <th>Unsafe (RF)</th>
+                                <th>Anomaly (IF)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody"></tbody>
+                    </table>
                 </div>
             </div>
         </section>
     </main>
 
-    <!-- Footer -->
-    <footer class="footer">
-        <div class="container">
-            <p>&copy; 2024 Smart AQI Monitoring System | Data updated hourly</p>
-            <p>Last Update: <span id="last-update-time">--</span></p>
-        </div>
-    </footer>
-
-    <!-- Loading Overlay -->
-    <div id="loading-overlay" class="loading-overlay">
+    <div class="loading-overlay" id="loadingOverlay">
         <div class="spinner"></div>
         <p>Loading data...</p>
     </div>
 
-    <!-- Scripts -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
-    <script src="../static/scripts.js"></script>
+    <script src="{{ url_for('static', filename='scripts.js') }}"></script>
 </body>
 </html>
