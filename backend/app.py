@@ -5,8 +5,6 @@ from flask_cors import CORS
 import pandas as pd
 import numpy as np
 import os
-import requests
-from datetime import datetime
 import joblib
 import subprocess
 
@@ -14,7 +12,7 @@ import subprocess
 # JSON SAFE CONVERSION
 # ---------------------------------------------------
 def json_safe(x):
-    if pd.isna(x):
+    if isinstance(x, (pd._libs.missing.NAType,)) or pd.isna(x):
         return None
     if isinstance(x, (np.bool_, bool)):
         return bool(x)
@@ -71,34 +69,72 @@ print("\n🔍 Loading ML models...")
 SCALER = None
 FEATURES = None
 ISO_MODEL = None
-CLASS_MODEL = None
+RF_MODEL = None
+XGB_CLF_MODEL = None
+XGB_REG_MODEL = None
+GBR_REG_MODEL = None
+METRICS = {}
 
-for fname in ["scaler.pkl", "features.pkl", "isolation_forest.pkl", "aqi_classifier.pkl"]:
-    file_path = os.path.join(MODEL_DIR, fname)
-    if os.path.exists(file_path):
-        print(f"✅ Loaded {fname}")
-        obj = joblib.load(file_path)
-        if fname == "scaler.pkl": SCALER = obj
-        elif fname == "features.pkl": FEATURES = obj
-        elif fname == "isolation_forest.pkl": ISO_MODEL = obj
-        elif fname == "aqi_classifier.pkl": CLASS_MODEL = obj
-    else:
+MODEL_FILES = [
+    "scaler.pkl",
+    "features.pkl",
+    "isolation_forest.pkl",
+    "rf_classifier.pkl",
+    "xgb_classifier.pkl",
+    "xgb_regressor.pkl",
+    "gbr_regressor.pkl",
+    "metrics.pkl",
+]
+
+for fname in MODEL_FILES:
+    path = os.path.join(MODEL_DIR, fname)
+    if not os.path.exists(path):
         print(f"❌ Missing model file: {fname}")
+        continue
+
+    try:
+        obj = joblib.load(path)
+        print(f"✅ Loaded {fname}")
+
+        if fname == "scaler.pkl":
+            SCALER = obj
+        elif fname == "features.pkl":
+            FEATURES = obj
+        elif fname == "isolation_forest.pkl":
+            ISO_MODEL = obj
+        elif fname == "rf_classifier.pkl":
+            RF_MODEL = obj
+        elif fname == "xgb_classifier.pkl":
+            XGB_CLF_MODEL = obj
+        elif fname == "xgb_regressor.pkl":
+            XGB_REG_MODEL = obj
+        elif fname == "gbr_regressor.pkl":
+            GBR_REG_MODEL = obj
+        elif fname == "metrics.pkl" and isinstance(obj, dict):
+            METRICS = obj
+
+    except Exception as e:
+        print(f"⚠ Error loading {fname}: {e}")
 
 
 # ---------------------------------------------------
 # FEATURE VECTOR BUILDER
 # ---------------------------------------------------
 def make_feature_vector(payload):
+    """
+    Build feature vector in the exact order stored in features.pkl.
+    FEATURES typically = POLLUTANTS + ['hour_of_day', 'day_of_week']
+    """
     if FEATURES is None:
         raise RuntimeError("FEATURES.pkl not loaded. Train models first.")
 
     vector = []
     for f in FEATURES:
-        val = payload.get(f, payload.get(f.replace(".", ""), 0))
+        # handle keys like "PM2.5" vs "PM25"
+        key_val = payload.get(f, payload.get(f.replace(".", ""), 0))
         try:
-            vector.append(float(val))
-        except:
+            vector.append(float(key_val))
+        except Exception:
             vector.append(0.0)
 
     return np.array(vector).reshape(1, -1)
@@ -110,6 +146,7 @@ def make_feature_vector(payload):
 @app.route("/")
 def home():
     return render_template("index.html")
+
 
 @app.route("/city/<name>")
 def city_page(name):
@@ -135,8 +172,10 @@ def recent_readings():
 
     df = df.sort_values("last_update", ascending=False)
 
-    return jsonify([{k: json_safe(v) for k, v in row.items()}
-                    for _, row in df.iterrows()])
+    return jsonify([
+        {k: json_safe(v) for k, v in row.items()}
+        for _, row in df.iterrows()
+    ])
 
 
 @app.get("/api/anomalies")
@@ -145,18 +184,24 @@ def anomalies():
     if df.empty:
         return jsonify([])
 
-    df = df[(df.get("iforest_anomaly") == 1) |
-            (df.get("z_anomaly") == True)]
+    df = df[
+        (df.get("iforest_anomaly") == 1) |
+        (df.get("z_anomaly") == True)
+    ]
 
-    return jsonify([{k: json_safe(v) for k, v in row.items()}
-                    for _, row in df.iterrows()])
+    return jsonify([
+        {k: json_safe(v) for k, v in row.items()}
+        for _, row in df.iterrows()
+    ])
 
 
 @app.get("/api/pca-data")
 def pca_data():
     df = safe_load(DATA_PCA, "cleaned_aqi_pca.csv")
-    return jsonify([{k: json_safe(v) for k, v in row.items()}
-                    for _, row in df.iterrows()])
+    return jsonify([
+        {k: json_safe(v) for k, v in row.items()}
+        for _, row in df.iterrows()
+    ])
 
 
 @app.get("/api/city-stats")
@@ -179,8 +224,10 @@ def city_stats():
         "NO2": "avg_no2"
     }, inplace=True)
 
-    return jsonify([{k: json_safe(v) for k, v in row.items()}
-                    for _, row in stats.iterrows()])
+    return jsonify([
+        {k: json_safe(v) for k, v in row.items()}
+        for _, row in stats.iterrows()
+    ])
 
 
 @app.get("/api/realtime")
@@ -188,8 +235,38 @@ def realtime():
     if not os.path.exists(REALTIME):
         return jsonify([])
     df = pd.read_csv(REALTIME)
-    return jsonify([{k: json_safe(v) for k, v in row.items()}
-                    for _, row in df.iterrows()])
+    return jsonify([
+        {k: json_safe(v) for k, v in row.items()}
+        for _, row in df.iterrows()
+    ])
+
+
+# ---------------------------------------------------
+# MODEL METRICS ENDPOINT
+# ---------------------------------------------------
+@app.get("/api/model-metrics")
+def model_metrics():
+    file_path = os.path.join(MODEL_DIR, "metrics.pkl")
+
+    if not os.path.exists(file_path):
+        return jsonify({
+            "rf_accuracy": None,
+            "xgb_clf_accuracy": None,
+            "xgb_reg_mae": None,
+            "gb_reg_mae": None
+        })
+
+    raw = joblib.load(file_path)
+
+    normalized = {
+        "rf_accuracy": raw.get("rf", {}).get("accuracy"),
+        "xgb_clf_accuracy": raw.get("xgb_classifier", {}).get("accuracy"),
+        "xgb_reg_mae": raw.get("xgb_regressor", {}).get("mae"),
+        "gb_reg_mae": raw.get("gradient_boosting", {}).get("mae")
+    }
+
+    return jsonify({k: json_safe(v) for k, v in normalized.items()})
+
 
 
 # ---------------------------------------------------
@@ -199,68 +276,152 @@ def realtime():
 def ingest():
     try:
         script_path = os.path.join(BASE_DIR, "backend", "cron", "hourly_ingest.py")
-        output = subprocess.check_output(
-            ["python", script_path], text=True
-        )
+        output = subprocess.check_output(["python", script_path], text=True)
         return jsonify({"status": "ok", "output": output})
-
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 # ---------------------------------------------------
-# ML PREDICTION API
+# ML PREDICTION API (MULTI-MODEL)
 # ---------------------------------------------------
 @app.post("/api/predict")
 def predict():
+    """
+    Input payload (JSON) expects at least pollutant fields and time features:
+    {
+      "PM2.5": ...,
+      "PM10": ...,
+      "NO2": ...,
+      "SO2": ...,
+      "OZONE": ...,
+      "CO": ...,
+      "NH3": ...,
+      "hour_of_day": ...,
+      "day_of_week": ...
+    }
+
+    Output JSON:
+    {
+      "anomaly": bool or null,
+      "unsafe_prob": float or null,     # main classifier probability
+      "unsafe_label": int or null,      # main classifier label (0/1)
+      "rf_pred": int or null,           # RF unsafe prediction
+      "xgb_clf_pred": int or null,      # XGB classifier unsafe prediction
+      "xgb_reg_pred": float or null,    # XGB regression AQI prediction
+      "gb_reg_pred": float or null      # GBR regression AQI prediction
+    }
+    """
     payload = request.get_json(force=True)
     if not payload:
         return jsonify({"error": "Empty payload"}), 400
 
-    result = {"anomaly": None, "unsafe_prob": None, "unsafe_label": None}
+    result = {
+        "anomaly": None,
+        "unsafe_prob": None,
+        "unsafe_label": None,
+        "rf_pred": None,
+        "xgb_clf_pred": None,
+        "xgb_reg_pred": None,
+        "gb_reg_pred": None,
+    }
 
-    # -------------------------
-    # Anomaly Detection
-    # -------------------------
-    try:
-        if ISO_MODEL and SCALER:
+    # If we don't have features/scaler, fall back to rules at the end
+    Xs = None
+    if FEATURES is not None and SCALER is not None:
+        try:
             X = make_feature_vector(payload)
             Xs = SCALER.transform(X)
+        except Exception as e:
+            print("Feature/scaler error:", e)
+
+    # -------------------------
+    # Anomaly Detection (Isolation Forest)
+    # -------------------------
+    try:
+        if ISO_MODEL is not None and Xs is not None:
             result["anomaly"] = bool(ISO_MODEL.predict(Xs)[0] == -1)
     except Exception as e:
         print("Anomaly error:", e)
 
     # -------------------------
-    # Classifier Prediction
+    # Random Forest Classifier
     # -------------------------
     try:
-        if CLASS_MODEL and SCALER:
-            X = make_feature_vector(payload)
-            Xs = SCALER.transform(X)
-
-            prob = CLASS_MODEL.predict_proba(Xs)[0][1]
-            label = CLASS_MODEL.predict(Xs)[0]
-
-            result["unsafe_prob"] = float(prob)
-            result["unsafe_label"] = int(label)
-
-            return jsonify({k: json_safe(v) for k, v in result.items()})
+        if RF_MODEL is not None and Xs is not None:
+            rf_label = int(RF_MODEL.predict(Xs)[0])
+            result["rf_pred"] = rf_label
     except Exception as e:
-        print("Classifier error:", e)
+        print("RF classifier error:", e)
 
     # -------------------------
-    # FALLBACK RULE (if models unavailable)
+    # XGBoost Classifier
     # -------------------------
-    pm25 = float(payload.get("PM2.5", 0))
-    pm10 = float(payload.get("PM10", 0))
+    try:
+        if XGB_CLF_MODEL is not None and Xs is not None:
+            xgb_label = int(XGB_CLF_MODEL.predict(Xs)[0])
+            xgb_prob = float(XGB_CLF_MODEL.predict_proba(Xs)[0][1])
+            result["xgb_clf_pred"] = xgb_label
 
-    score = 0
-    if pm25 >= 60: score += 0.7
-    if pm10 >= 100: score += 0.5
+            # Use XGB classifier as the *main* unsafe prediction if available
+            result["unsafe_label"] = xgb_label
+            result["unsafe_prob"] = xgb_prob
+    except Exception as e:
+        print("XGB classifier error:", e)
 
-    result["unsafe_prob"] = min(1.0, score)
-    result["unsafe_label"] = 1 if score > 0.4 else 0
-    result["anomaly"] = result["anomaly"] or False
+    # If we didn't set unsafe_* from XGB, fallback to RF if available
+    if result["unsafe_label"] is None and RF_MODEL is not None and Xs is not None:
+        try:
+            rf_label = int(RF_MODEL.predict(Xs)[0])
+            rf_prob = float(RF_MODEL.predict_proba(Xs)[0][1])
+            result["unsafe_label"] = rf_label
+            result["unsafe_prob"] = rf_prob
+        except Exception as e:
+            print("RF prob fallback error:", e)
+
+    # -------------------------
+    # XGBoost Regressor (AQI)
+    # -------------------------
+    try:
+        if XGB_REG_MODEL is not None and Xs is not None:
+            xgb_reg_val = float(XGB_REG_MODEL.predict(Xs)[0])
+            result["xgb_reg_pred"] = xgb_reg_val
+    except Exception as e:
+        print("XGB regressor error:", e)
+
+    # -------------------------
+    # Gradient Boosting Regressor (AQI)
+    # -------------------------
+    try:
+        if GBR_REG_MODEL is not None and Xs is not None:
+            gb_reg_val = float(GBR_REG_MODEL.predict(Xs)[0])
+            result["gb_reg_pred"] = gb_reg_val
+    except Exception as e:
+        print("GBR regressor error:", e)
+
+    # -------------------------
+    # FALLBACK RULE (if classifiers missing)
+    # -------------------------
+    if result["unsafe_prob"] is None or result["unsafe_label"] is None:
+        try:
+            pm25 = float(payload.get("PM2.5", 0) or 0)
+            pm10 = float(payload.get("PM10", 0) or 0)
+
+            score = 0.0
+            if pm25 >= 60:
+                score += 0.7
+            if pm10 >= 100:
+                score += 0.5
+
+            score = min(1.0, score)
+            result["unsafe_prob"] = score
+            result["unsafe_label"] = 1 if score > 0.4 else 0
+
+            # if anomaly still None, set default False
+            if result["anomaly"] is None:
+                result["anomaly"] = False
+        except Exception as e:
+            print("Fallback rule error:", e)
 
     return jsonify({k: json_safe(v) for k, v in result.items()})
 

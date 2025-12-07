@@ -13,37 +13,45 @@
         }
 
         :root {
-            --aqi-good: #00C853;
-            --aqi-satisfactory: #FFD600;
-            --aqi-moderate: #FF6D00;
-            --aqi-poor: #DD2C00;
-            --aqi-very-poor: #7B1FA2;
-            --aqi-severe: #4A148C;
-            --primary: #1976D2;
-            --bg-primary: #F8FAFC;
-            --bg-card: #FFFFFF;
-            --text-primary: #1E293B;
-            --text-secondary: #64748B;
-            --border: #E2E8F0;
-            --shadow: 0 1px 3px rgba(0,0,0,0.1);
-            --shadow-lg: 0 10px 25px rgba(0,0,0,0.1);
+            /* AQI Category Colors */
+            --aqi-good: #22c55e;
+            --aqi-satisfactory: #eab308;
+            --aqi-moderate: #fb923c;
+            --aqi-poor: #f97316;
+            --aqi-very-poor: #a855f7;
+            --aqi-severe: #e11d48;
+
+            /* Theme */
+            --primary: #38bdf8;
+            --primary-soft: rgba(56,189,248,0.15);
+            --bg-primary: #020617;
+            --bg-elevated: #020617;
+            --bg-card: #020617;
+            --text-primary: #e5e7eb;
+            --text-secondary: #9ca3af;
+            --border: #1f2937;
+            --shadow: 0 18px 45px rgba(15,23,42,0.85);
+            --shadow-lg: 0 25px 60px rgba(15,23,42,0.95);
         }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-            background: var(--bg-primary);
+            background: radial-gradient(circle at top left, #1e293b 0, #020617 40%, #000 100%);
             color: var(--text-primary);
             line-height: 1.6;
         }
 
+        /* HEADER / NAV */
+
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: radial-gradient(circle at top left, #0f172a, #020617 60%, #020617);
+            border-bottom: 1px solid rgba(148,163,184,0.15);
             color: white;
-            padding: 1.5rem 0;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            padding: 1.25rem 0;
             position: sticky;
             top: 0;
             z-index: 1000;
+            backdrop-filter: blur(18px);
         }
 
         .header-content {
@@ -58,99 +66,143 @@
         .logo {
             display: flex;
             align-items: center;
-            gap: 1rem;
-            font-size: 1.5rem;
+            gap: 0.85rem;
+            font-size: 1.4rem;
             font-weight: 700;
+        }
+
+        .logo i {
+            padding: 0.5rem;
+            border-radius: 0.9rem;
+            background: radial-gradient(circle at 20% 0, #38bdf8, #6366f1 60%, #0f172a);
+            box-shadow: 0 0 30px rgba(56,189,248,0.45);
+        }
+
+        .logo span {
+            letter-spacing: 0.04em;
         }
 
         .nav {
             display: flex;
-            gap: 2rem;
+            gap: 1.25rem;
+            align-items: center;
         }
 
         .nav-link {
-            color: white;
+            color: #e5e7eb;
             text-decoration: none;
-            padding: 0.5rem 1rem;
-            border-radius: 8px;
-            transition: all 0.3s;
+            padding: 0.5rem 0.85rem;
+            border-radius: 999px;
+            font-size: 0.9rem;
             font-weight: 500;
+            border: 1px solid transparent;
+            transition: all 0.25s ease;
         }
 
-        .nav-link:hover, .nav-link.active {
-            background: rgba(255,255,255,0.2);
+        .nav-link:hover {
+            border-color: rgba(148,163,184,0.4);
+            background: rgba(15,23,42,0.9);
         }
+
+        .nav-link.active {
+            background: linear-gradient(135deg, #38bdf8, #6366f1);
+            box-shadow: 0 10px 28px rgba(56,189,248,0.45);
+            color: #0b1120;
+        }
+
+        /* HERO + SEARCH */
 
         .hero-search {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 4rem 2rem;
+            background: radial-gradient(circle at top left, #0f172a, #020617 60%, #020617);
+            padding: 3.5rem 2rem 3rem;
             text-align: center;
             color: white;
+            border-bottom: 1px solid rgba(148,163,184,0.12);
         }
 
         .hero-search h1 {
-            font-size: 3rem;
+            font-size: 2.5rem;
             font-weight: 700;
-            margin-bottom: 1rem;
+            margin-bottom: 0.75rem;
         }
 
         .hero-search p {
-            font-size: 1.25rem;
+            font-size: 1.05rem;
             opacity: 0.9;
             margin-bottom: 2rem;
+            max-width: 640px;
+            margin-left: auto;
+            margin-right: auto;
         }
 
         .search-container {
-            max-width: 700px;
+            max-width: 640px;
             margin: 0 auto;
             position: relative;
         }
 
         .search-box {
             display: flex;
-            background: white;
-            border-radius: 50px;
+            background: rgba(15,23,42,0.95);
+            border-radius: 999px;
             overflow: hidden;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+            border: 1px solid rgba(148,163,184,0.4);
+            box-shadow: 0 18px 45px rgba(15,23,42,0.85);
         }
 
         .search-input {
             flex: 1;
-            padding: 1.25rem 2rem;
+            padding: 1.1rem 1.75rem;
             border: none;
-            font-size: 1.125rem;
+            font-size: 1rem;
             outline: none;
             color: var(--text-primary);
+            background: transparent;
+        }
+
+        .search-input::placeholder {
+            color: rgba(148,163,184,0.75);
         }
 
         .search-btn {
-            background: #667eea;
-            color: white;
+            background: linear-gradient(135deg, #38bdf8, #6366f1);
+            color: #0b1120;
             border: none;
-            padding: 1.25rem 2.5rem;
-            font-size: 1.125rem;
+            padding: 0 1.9rem;
+            font-size: 0.95rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.45rem;
+            white-space: nowrap;
+        }
+
+        .search-btn i {
+            font-size: 0.9rem;
         }
 
         .search-btn:hover {
-            background: #5568d3;
+            transform: translateY(-1px);
+            box-shadow: 0 15px 45px rgba(56,189,248,0.4);
         }
 
         .search-btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
+            box-shadow: none;
         }
 
         .search-suggestions {
-            background: white;
-            margin-top: 1rem;
-            border-radius: 12px;
-            max-height: 300px;
+            background: #020617;
+            margin-top: 0.85rem;
+            border-radius: 1rem;
+            max-height: 280px;
             overflow-y: auto;
             display: none;
-            box-shadow: var(--shadow-lg);
+            box-shadow: 0 22px 55px rgba(15,23,42,0.95);
+            border: 1px solid rgba(30,64,175,0.7);
         }
 
         .search-suggestions.active {
@@ -158,22 +210,27 @@
         }
 
         .suggestion-item {
-            padding: 1rem 1.5rem;
+            padding: 0.9rem 1.3rem;
             cursor: pointer;
-            transition: all 0.2s;
             color: var(--text-primary);
-            text-align: left;
-            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+            border-bottom: 1px solid rgba(15,23,42,0.9);
+        }
+
+        .suggestion-item:last-child {
+            border-bottom: none;
         }
 
         .suggestion-item:hover {
-            background: var(--bg-primary);
+            background: rgba(15,23,42,0.9);
         }
+
+        /* MAIN LAYOUT / SECTIONS */
 
         .main-content {
             max-width: 1400px;
             margin: 0 auto;
-            padding: 2rem;
+            padding: 2.25rem 2rem 3rem;
         }
 
         .section {
@@ -184,65 +241,71 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 2rem;
+            margin-bottom: 1.75rem;
         }
 
         .section-title {
-            font-size: 2rem;
-            font-weight: 700;
+            font-size: 1.7rem;
+            font-weight: 600;
             color: var(--text-primary);
+            letter-spacing: 0.02em;
         }
+
+        /* STATS CARDS */
 
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
             gap: 1.5rem;
             margin-bottom: 2rem;
         }
 
         .stat-card {
-            background: var(--bg-card);
-            padding: 2rem;
-            border-radius: 16px;
+            background: radial-gradient(circle at top left, rgba(15,23,42,0.15), rgba(15,23,42,0.95));
+            padding: 1.6rem;
+            border-radius: 1.25rem;
             box-shadow: var(--shadow);
             display: flex;
             align-items: center;
-            gap: 1.5rem;
-            transition: all 0.3s;
+            gap: 1.25rem;
+            border: 1px solid rgba(15,23,42,0.95);
+            transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
         }
 
         .stat-card:hover {
             transform: translateY(-4px);
             box-shadow: var(--shadow-lg);
+            border-color: rgba(56,189,248,0.4);
         }
 
         .stat-icon {
-            width: 70px;
-            height: 70px;
-            border-radius: 16px;
+            width: 60px;
+            height: 60px;
+            border-radius: 1rem;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 2rem;
+            font-size: 1.8rem;
+            background: rgba(15,23,42,0.9);
         }
 
         .stat-card.good .stat-icon {
-            background: rgba(0,200,83,0.1);
+            background: rgba(34,197,94,0.12);
             color: var(--aqi-good);
         }
 
         .stat-card.moderate .stat-icon {
-            background: rgba(255,109,0,0.1);
+            background: rgba(249,115,22,0.12);
             color: var(--aqi-moderate);
         }
 
         .stat-card.poor .stat-icon {
-            background: rgba(221,44,0,0.1);
+            background: rgba(248,113,113,0.12);
             color: var(--aqi-poor);
         }
 
         .stat-card.severe .stat-icon {
-            background: rgba(74,20,140,0.1);
+            background: rgba(248,113,113,0.12);
             color: var(--aqi-severe);
         }
 
@@ -251,59 +314,77 @@
         }
 
         .stat-content h3 {
-            font-size: 2.2rem;
+            font-size: 1.8rem;
             font-weight: 700;
-            margin-bottom: 0.25rem;
+            white-space: nowrap;
+            color: var(--text-primary);
         }
+
 
         .stat-content p {
             color: var(--text-secondary);
-            font-size: 0.875rem;
+            font-size: 0.85rem;
         }
 
+        /* FORECAST */
+
         .forecast-section {
-            background: var(--bg-card);
-            border-radius: 20px;
-            padding: 2rem;
+            background: radial-gradient(circle at top left, rgba(15,23,42,0.25), rgba(15,23,42,0.98));
+            border-radius: 1.5rem;
+            padding: 1.85rem;
             box-shadow: var(--shadow);
-            margin-bottom: 2rem;
+            border: 1px solid rgba(15,23,42,0.95);
         }
 
         .forecast-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 2rem;
+            margin-bottom: 1.75rem;
         }
 
         .forecast-header h2 {
-            font-size: 1.75rem;
-            font-weight: 700;
+            font-size: 1.4rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+        }
+
+        .forecast-header h2 i {
+            color: var(--primary);
         }
 
         .time-selector {
             display: flex;
-            gap: 0.5rem;
-            background: var(--bg-primary);
-            padding: 0.5rem;
-            border-radius: 12px;
+            gap: 0.45rem;
+            background: rgba(15,23,42,0.9);
+            padding: 0.35rem;
+            border-radius: 999px;
+            border: 1px solid rgba(51,65,85,0.9);
         }
 
         .time-btn {
-            padding: 0.5rem 1.25rem;
+            padding: 0.45rem 1.35rem;
             border: none;
             background: transparent;
-            border-radius: 8px;
+            border-radius: 999px;
             cursor: pointer;
-            font-weight: 600;
+            font-weight: 500;
+            font-size: 0.85rem;
             color: var(--text-secondary);
-            transition: all 0.3s;
+            transition: all 0.25s;
         }
 
         .time-btn.active {
-            background: white;
-            color: var(--primary);
-            box-shadow: var(--shadow);
+            background: linear-gradient(135deg, #38bdf8, #6366f1);
+            color: #020617;
+            box-shadow: 0 12px 30px rgba(56,189,248,0.45);
+        }
+
+        .time-btn:hover:not(.active) {
+            background: rgba(15,23,42,0.9);
+            color: #e5e7eb;
         }
 
         .forecast-grid {
@@ -313,48 +394,55 @@
         }
 
         .forecast-card {
-            background: var(--bg-primary);
-            padding: 1.5rem;
-            border-radius: 16px;
+            background: rgba(15,23,42,0.9);
+            padding: 1.25rem 1.35rem;
+            border-radius: 1.1rem;
             text-align: center;
-            transition: all 0.3s;
+            border: 1px solid rgba(30,64,175,0.55);
+            transition: all 0.25s;
         }
 
         .forecast-card:hover {
             transform: translateY(-4px);
-            background: #E0E7FF;
+            border-color: rgba(56,189,248,0.6);
+            box-shadow: 0 18px 40px rgba(15,23,42,0.9);
         }
 
         .forecast-day {
-            font-weight: 600;
-            margin-bottom: 0.5rem;
+            font-weight: 500;
+            margin-bottom: 0.4rem;
             color: var(--text-secondary);
+            font-size: 0.85rem;
         }
 
         .forecast-aqi {
-            font-size: 2.5rem;
+            font-size: 2rem;
             font-weight: 700;
-            margin: 0.5rem 0;
+            margin: 0.3rem 0;
         }
 
         .forecast-category {
             display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 20px;
-            font-size: 0.75rem;
+            padding: 0.2rem 0.7rem;
+            border-radius: 999px;
+            font-size: 0.7rem;
             font-weight: 600;
             text-transform: uppercase;
-            margin-top: 0.5rem;
+            margin-top: 0.3rem;
+            border: 1px solid rgba(148,163,184,0.4);
+            background: rgba(15,23,42,0.9);
         }
 
         .forecast-details {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 0.5rem;
-            margin-top: 1rem;
+            gap: 0.45rem;
+            margin-top: 0.8rem;
             font-size: 0.75rem;
             color: var(--text-secondary);
         }
+
+        /* CITY CARDS */
 
         .city-grid {
             display: grid;
@@ -363,47 +451,54 @@
         }
 
         .city-card {
-            background: var(--bg-card);
-            border-radius: 20px;
-            padding: 2rem;
+            background: radial-gradient(circle at top left, rgba(15,23,42,0.2), rgba(15,23,42,0.98));
+            border-radius: 1.25rem;
+            padding: 1.75rem;
             box-shadow: var(--shadow);
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all 0.25s;
             position: relative;
             overflow: hidden;
+            border: 1px solid rgba(15,23,42,0.95);
         }
 
         .city-card::before {
             content: '';
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 4px;
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            inset: 0;
+            background: linear-gradient(90deg, rgba(56,189,248,0.25), rgba(129,140,248,0.25));
+            opacity: 0;
+            transition: opacity 0.25s;
+        }
+
+        .city-card:hover::before {
+            opacity: 1;
         }
 
         .city-card:hover {
-            transform: translateY(-8px);
+            transform: translateY(-6px);
             box-shadow: var(--shadow-lg);
+            border-color: rgba(56,189,248,0.5);
         }
 
         .city-header {
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            margin-bottom: 1.5rem;
+            margin-bottom: 1.4rem;
+            position: relative;
+            z-index: 1;
         }
 
         .city-info h3 {
-            font-size: 1.5rem;
-            font-weight: 700;
-            margin-bottom: 0.25rem;
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 0.2rem;
         }
 
         .city-info p {
             color: var(--text-secondary);
-            font-size: 0.875rem;
+            font-size: 0.85rem;
         }
 
         .city-aqi {
@@ -411,7 +506,7 @@
         }
 
         .city-aqi-value {
-            font-size: 3rem;
+            font-size: 2.4rem;
             font-weight: 700;
             line-height: 1;
         }
@@ -421,12 +516,15 @@
             text-transform: uppercase;
             font-weight: 600;
             margin-top: 0.25rem;
+            color: var(--text-secondary);
         }
 
         .pollutant-list {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
-            gap: 1rem;
+            gap: 0.9rem;
+            position: relative;
+            z-index: 1;
         }
 
         .pollutant {
@@ -434,21 +532,24 @@
         }
 
         .pollutant-name {
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             color: var(--text-secondary);
-            margin-bottom: 0.25rem;
+            margin-bottom: 0.18rem;
         }
 
         .pollutant-value {
-            font-size: 1.25rem;
-            font-weight: 700;
+            font-size: 1.1rem;
+            font-weight: 600;
         }
 
+        /* TABLE */
+
         .table-card {
-            background: var(--bg-card);
-            border-radius: 20px;
-            padding: 2rem;
+            background: radial-gradient(circle at top left, rgba(15,23,42,0.25), rgba(15,23,42,0.98));
+            border-radius: 1.25rem;
+            padding: 1.75rem;
             box-shadow: var(--shadow);
+            border: 1px solid rgba(15,23,42,0.95);
         }
 
         .table-wrapper {
@@ -458,21 +559,23 @@
         table {
             width: 100%;
             border-collapse: collapse;
+            font-size: 0.9rem;
         }
 
         th {
             text-align: left;
-            padding: 1rem;
-            background: var(--bg-primary);
+            padding: 0.9rem;
+            background: #020617;
             font-weight: 600;
             color: var(--text-secondary);
-            font-size: 0.875rem;
+            border-bottom: 1px solid rgba(30,64,175,0.7);
+            white-space: nowrap;
         }
 
         td {
-            padding: 1rem;
-            border-bottom: 1px solid var(--border);
-            font-size: 0.9rem;
+            padding: 0.85rem 0.9rem;
+            border-bottom: 1px solid rgba(30,41,59,0.9);
+            font-size: 0.86rem;
         }
 
         tr:last-child td {
@@ -480,36 +583,36 @@
         }
 
         tbody tr:hover {
-            background: var(--bg-primary);
+            background: rgba(15,23,42,0.9);
         }
 
         .badge {
             display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 20px;
-            font-size: 0.75rem;
+            padding: 0.2rem 0.7rem;
+            border-radius: 999px;
+            font-size: 0.7rem;
             font-weight: 600;
         }
 
-        .badge.good { background: rgba(0,200,83,0.1); color: var(--aqi-good); }
-        .badge.satisfactory { background: rgba(255,214,0,0.1); color: #F57F17; }
-        .badge.moderate { background: rgba(255,109,0,0.1); color: var(--aqi-moderate); }
-        .badge.poor { background: rgba(221,44,0,0.1); color: var(--aqi-poor); }
-        .badge.very-poor { background: rgba(123,31,162,0.1); color: var(--aqi-very-poor); }
-        .badge.severe { background: rgba(74,20,140,0.1); color: var(--aqi-severe); }
+        .badge.good { background: rgba(34,197,94,0.12); color: var(--aqi-good); }
+        .badge.satisfactory { background: rgba(234,179,8,0.15); color: #eab308; }
+        .badge.moderate { background: rgba(251,146,60,0.15); color: var(--aqi-moderate); }
+        .badge.poor { background: rgba(248,113,113,0.15); color: var(--aqi-poor); }
+        .badge.very-poor { background: rgba(168,85,247,0.15); color: var(--aqi-very-poor); }
+        .badge.severe { background: rgba(248,113,113,0.2); color: var(--aqi-severe); }
+
+        /* LOADING OVERLAY */
 
         .loading-overlay {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.7);
+            inset: 0;
+            background: rgba(15,23,42,0.9);
             display: none;
             justify-content: center;
             align-items: center;
-            z-index: 9999;
             flex-direction: column;
+            z-index: 9999;
+            backdrop-filter: blur(18px);
         }
 
         .loading-overlay.active {
@@ -517,11 +620,11 @@
         }
 
         .spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid rgba(255,255,255,0.3);
-            border-top-color: white;
-            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            border-radius: 999px;
+            border: 3px solid rgba(148,163,184,0.35);
+            border-top-color: #e5e7eb;
             animation: spin 1s linear infinite;
         }
 
@@ -530,16 +633,40 @@
         }
 
         .loading-overlay p {
-            color: white;
+            color: #e5e7eb;
             margin-top: 1rem;
-            font-size: 1.125rem;
+            font-size: 1rem;
         }
 
+        /* RESPONSIVE */
+
         @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                gap: 0.75rem;
+            }
+
+            .nav {
+                display: none;
+            }
+
             .hero-search h1 { font-size: 2rem; }
-            .nav { display: none; }
-            .forecast-grid { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
-            .stats-grid { grid-template-columns: 1fr; }
+
+            .main-content {
+                padding-inline: 1.25rem;
+            }
+
+            .forecast-grid {
+                grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .city-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -554,16 +681,17 @@
                 <a href="#overview" class="nav-link active">Overview</a>
                 <a href="#forecast" class="nav-link">Forecast</a>
                 <a href="#cities" class="nav-link">Cities</a>
+                <a href="#models" class="nav-link">Models</a>
             </nav>
         </div>
     </header>
 
     <section class="hero-search">
-        <h1>Air Quality Index Monitor</h1>
-        <p>Real-time air quality, anomaly detection and ML-based health risk prediction</p>
+        <h1>Air Quality Intelligence Dashboard</h1>
+        <p>Track real-time AQI, anomaly detection and ML-based health risk insights across Indian cities.</p>
         <div class="search-container">
             <div class="search-box">
-                <input type="text" class="search-input" id="citySearch" placeholder="Search for a city..." autocomplete="off">
+                <input type="text" class="search-input" id="citySearch" placeholder="Search for a city." autocomplete="off">
                 <button class="search-btn" onclick="searchCity()">
                     <i class="fas fa-search"></i> Search
                 </button>
@@ -587,18 +715,18 @@
                     <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
                     <div class="stat-content">
                         <h3 id="stat-good">0</h3>
-                        <p>Good Quality Cities</p>
+                        <p>Cities with Good / Satisfactory AQI</p>
                     </div>
                 </div>
                 <div class="stat-card moderate">
-                    <div class="stat-icon"><i class="fas fa-exclamation-circle"></i></div>
+                    <div class="stat-icon"><i class="fas fa-city"></i></div>
                     <div class="stat-content">
                         <h3 id="stat-moderate">0</h3>
-                        <p>Moderate / Satisfactory Cities</p>
+                        <p>Cities in Moderate AQI Range</p>
                     </div>
                 </div>
                 <div class="stat-card poor">
-                    <div class="stat-icon"><i class="fas fa-times-circle"></i></div>
+                    <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
                     <div class="stat-content">
                         <h3 id="stat-poor">0</h3>
                         <p>Poor / Very Poor Cities</p>
@@ -629,15 +757,15 @@
             </div>
         </section>
 
-        <!-- Forecast (simple ML-like simulation) -->
+        <!-- Forecast (pattern-based cards, dark UI) -->
         <section id="forecast" class="section">
             <div class="forecast-section">
                 <div class="forecast-header">
                     <h2><i class="fas fa-calendar-week"></i> AQI Forecast (Pattern-based)</h2>
                     <div class="time-selector">
-                        <button class="time-btn active" onclick="switchForecast('7day')">7 Days</button>
-                        <button class="time-btn" onclick="switchForecast('24hr')">24 Hours</button>
-                        <button class="time-btn" onclick="switchForecast('48hr')">48 Hours</button>
+                        <button class="time-btn active" onclick="switchForecast('7day', this)">7 Days</button>
+                        <button class="time-btn" onclick="switchForecast('24hr', this)">24 Hours</button>
+                        <button class="time-btn" onclick="switchForecast('48hr', this)">48 Hours</button>
                     </div>
                 </div>
                 <div class="forecast-grid" id="forecastGrid"></div>
@@ -655,7 +783,9 @@
         <!-- Latest readings table -->
         <section class="section">
             <div class="table-card">
-                <h2 style="margin-bottom: 1.5rem;">Latest Readings with ML Predictions</h2>
+                <h2 style="margin-bottom: 1.25rem; font-size: 1.3rem; font-weight: 600;">
+                    Latest Readings with ML Predictions
+                </h2>
                 <div class="table-wrapper">
                     <table>
                         <thead>
@@ -676,11 +806,89 @@
                 </div>
             </div>
         </section>
+
+        <!-- Model performance + comparison -->
+        <section id="models" class="section">
+    <div class="section-header">
+        <h2 class="section-title">Model Performance & Comparison</h2>
+    </div>
+
+    <!-- Metrics cards -->
+    <div class="stats-grid">
+
+        <!-- Random Forest Accuracy -->
+        <div class="stat-card ml">
+            <div class="stat-icon">
+                <i class="fas fa-tree"></i>
+            </div>
+            <div class="stat-content">
+                <h3 id="rf-acc">--%</h3>
+                <p>Random Forest Classifier Accuracy</p>
+            </div>
+        </div>
+
+        <!-- XGBoost Classifier Accuracy -->
+        <div class="stat-card ml">
+            <div class="stat-icon">
+                <i class="fas fa-bolt"></i>
+            </div>
+            <div class="stat-content">
+                <h3 id="xgb-clf-acc">--%</h3>
+                <p>XGBoost Classifier Accuracy</p>
+            </div>
+        </div>
+
+        <!-- XGBoost Regressor MAE -->
+        <div class="stat-card ml">
+            <div class="stat-icon">
+                <i class="fas fa-chart-line"></i>
+            </div>
+            <div class="stat-content">
+                <h3 id="xgb-reg-mae">--</h3>
+                <p>XGBoost Regressor MAE (AQI)</p>
+            </div>
+        </div>
+
+        <!-- Gradient Boosting Regressor MAE -->
+        <div class="stat-card ml">
+            <div class="stat-icon">
+                <i class="fas fa-signal"></i>
+            </div>
+            <div class="stat-content">
+                <h3 id="gb-reg-mae">--</h3>
+                <p>Gradient Boosting MAE (AQI)</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Prediction comparison table -->
+    <div class="table-card">
+        <h2 style="margin-bottom: 1.25rem; font-size: 1.3rem; font-weight: 600;">
+            Sample Model-wise Predictions (same inputs)
+        </h2>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>City</th>
+                        <th>PM2.5</th>
+                        <th>RF Unsafe?</th>
+                        <th>XGB Class</th>
+                        <th>XGB AQI (Reg)</th>
+                        <th>GBR AQI (Reg)</th>
+                    </tr>
+                </thead>
+                <tbody id="modelCompareBody"></tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
     </main>
 
     <div class="loading-overlay" id="loadingOverlay">
         <div class="spinner"></div>
-        <p>Loading data...</p>
+        <p>Loading data.</p>
     </div>
 
     <script src="{{ url_for('static', filename='scripts.js') }}"></script>

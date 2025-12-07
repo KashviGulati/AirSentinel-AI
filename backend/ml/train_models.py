@@ -6,7 +6,15 @@ Train 5 ML models for AQI Analysis:
  - XGBoostRegressor (AQI prediction)
  - GradientBoostingRegressor (AQI prediction)
 
-Saves all models + scaler + features to backend/ml/models/
+Saves:
+ - scaler.pkl
+ - features.pkl
+ - isolation_forest.pkl
+ - rf_classifier.pkl
+ - xgb_classifier.pkl
+ - xgb_regressor.pkl
+ - gbr_regressor.pkl
+ - metrics.pkl
 
 Run:
     python -m backend.ml.train_models
@@ -21,13 +29,12 @@ from sklearn.ensemble import IsolationForest, RandomForestClassifier, GradientBo
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import (
-    accuracy_score, classification_report,
+    accuracy_score, precision_score, recall_score, f1_score,
     mean_absolute_error, mean_squared_error
 )
 
-# XGBoost (ensure installed)
+# XGBoost Models
 from xgboost import XGBClassifier, XGBRegressor
-
 
 # ------------------------------------------------------------
 # PATHS
@@ -46,41 +53,37 @@ POLLUTANTS = ["PM2.5", "PM10", "NO2", "SO2", "OZONE", "CO", "NH3"]
 def load_and_prepare(path):
     df = pd.read_csv(path, low_memory=False)
 
-    # Clean pollutant numeric columns
+    # Clean pollutant values
     for c in POLLUTANTS:
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors="coerce")
 
-    # Require at least one pollutant
     df["num_poll"] = df[[c for c in POLLUTANTS if c in df.columns]].notna().sum(axis=1)
     df = df[df["num_poll"] >= 1].copy()
 
-    # Target classification: unsafe (AQI > 100)
     if "AQI_official" not in df.columns:
         raise KeyError("AQI_official column missing")
 
+    # Classification target
     df["unsafe"] = (df["AQI_official"] > 100).astype(int)
 
     # Time features
-    if "hour_of_day" not in df.columns:
-        df["last_update"] = pd.to_datetime(df["last_update"], errors="coerce")
-        df["hour_of_day"] = df["last_update"].dt.hour
-        df["day_of_week"] = df["last_update"].dt.dayofweek
+    df["last_update"] = pd.to_datetime(df["last_update"], errors="coerce")
+    df["hour_of_day"] = df["last_update"].dt.hour.fillna(0).astype(int)
+    df["day_of_week"] = df["last_update"].dt.dayofweek.fillna(0).astype(int)
 
-    # Features
     features = POLLUTANTS + ["hour_of_day", "day_of_week"]
 
     df = df.dropna(subset=features + ["unsafe", "AQI_official"])
-
     X = df[features].fillna(0.0).values
-    y_class = df["unsafe"].values         # Safe vs Unsafe
-    y_reg = df["AQI_official"].values     # AQI regression target
+    y_class = df["unsafe"].values
+    y_reg = df["AQI_official"].values
 
     return X, y_class, y_reg, features
 
 
 # ------------------------------------------------------------
-# TRAIN
+# TRAIN ALL MODELS
 # ------------------------------------------------------------
 def train():
     print("\n📌 Loading dataset…")
@@ -98,61 +101,75 @@ def train():
     print("✅ Saved scaler.pkl + features.pkl")
 
     # --------------------------------------------------------
-    # 1. ISOLATION FOREST (Anomaly Detection)
+    # Isolation Forest
     # --------------------------------------------------------
     print("\n🔍 Training Isolation Forest…")
-    iso = IsolationForest(n_estimators=300, contamination=0.02, random_state=42)
+    iso = IsolationForest(
+        n_estimators=350,
+        contamination=0.02,
+        random_state=42
+    )
     iso.fit(X_scaled)
-
     joblib.dump(iso, os.path.join(OUT_DIR, "isolation_forest.pkl"))
     print("✅ Saved isolation_forest.pkl")
 
     # --------------------------------------------------------
-    # Train/Test Split (for classification + regression)
+    # Split dataset
     # --------------------------------------------------------
     X_train, X_test, y_class_train, y_class_test, y_reg_train, y_reg_test = train_test_split(
-        X_scaled, y_class, y_reg,
-        test_size=0.2, random_state=42, stratify=y_class
+        X_scaled, y_class, y_reg, test_size=0.2,
+        random_state=42, stratify=y_class
     )
 
     # --------------------------------------------------------
-    # 2. RANDOM FOREST CLASSIFIER
+    # 1. RANDOM FOREST CLASSIFIER
     # --------------------------------------------------------
     print("\n🌲 Training RandomForestClassifier…")
-    rf = RandomForestClassifier(n_estimators=300, random_state=42, n_jobs=-1)
+    rf = RandomForestClassifier(
+        n_estimators=300,
+        random_state=42,
+        n_jobs=-1
+    )
     rf.fit(X_train, y_class_train)
     preds_rf = rf.predict(X_test)
 
-    print("\nRF Classification Report:")
-    print(classification_report(y_class_test, preds_rf))
-    print("RF Accuracy:", accuracy_score(y_class_test, preds_rf))
+    rf_metrics = {
+        "accuracy": accuracy_score(y_class_test, preds_rf),
+        "precision": precision_score(y_class_test, preds_rf),
+        "recall": recall_score(y_class_test, preds_rf),
+        "f1": f1_score(y_class_test, preds_rf),
+    }
 
+    print("RF Metrics:", rf_metrics)
     joblib.dump(rf, os.path.join(OUT_DIR, "rf_classifier.pkl"))
-    print("✅ Saved rf_classifier.pkl")
 
     # --------------------------------------------------------
-    # 3. XGBOOST CLASSIFIER
+    # 2. XGBOOST CLASSIFIER
     # --------------------------------------------------------
     print("\n⚡ Training XGBoost Classifier…")
     xgb_clf = XGBClassifier(
-        n_estimators=300,
+        n_estimators=350,
         learning_rate=0.05,
         max_depth=6,
         subsample=0.8,
+        colsample_bytree=0.9,
         random_state=42
     )
     xgb_clf.fit(X_train, y_class_train)
     preds_xgb = xgb_clf.predict(X_test)
 
-    print("\nXGB Classifier Report:")
-    print(classification_report(y_class_test, preds_xgb))
-    print("XGB Accuracy:", accuracy_score(y_class_test, preds_xgb))
+    xgb_clf_metrics = {
+        "accuracy": accuracy_score(y_class_test, preds_xgb),
+        "precision": precision_score(y_class_test, preds_xgb),
+        "recall": recall_score(y_class_test, preds_xgb),
+        "f1": f1_score(y_class_test, preds_xgb),
+    }
 
+    print("XGB Classifier Metrics:", xgb_clf_metrics)
     joblib.dump(xgb_clf, os.path.join(OUT_DIR, "xgb_classifier.pkl"))
-    print("✅ Saved xgb_classifier.pkl")
 
     # --------------------------------------------------------
-    # 4. XGBOOST REGRESSOR
+    # 3. XGBOOST REGRESSOR
     # --------------------------------------------------------
     print("\n📈 Training XGBoost Regressor…")
     xgb_reg = XGBRegressor(
@@ -160,33 +177,55 @@ def train():
         learning_rate=0.05,
         max_depth=6,
         subsample=0.9,
+        colsample_bytree=0.9,
         random_state=42
     )
     xgb_reg.fit(X_train, y_reg_train)
-    reg_pred_xgb = xgb_reg.predict(X_test)
+    xgb_reg_pred = xgb_reg.predict(X_test)
 
-    print("\nXGB Regressor MAE:", mean_absolute_error(y_reg_test, reg_pred_xgb))
-    print("XGB Regressor RMSE:", np.sqrt(mean_squared_error(y_reg_test, reg_pred_xgb)))
+    xgb_reg_metrics = {
+        "mae": mean_absolute_error(y_reg_test, xgb_reg_pred),
+        "rmse": np.sqrt(mean_squared_error(y_reg_test, xgb_reg_pred)),
+    }
 
+    print("XGB Regressor Metrics:", xgb_reg_metrics)
     joblib.dump(xgb_reg, os.path.join(OUT_DIR, "xgb_regressor.pkl"))
-    print("✅ Saved xgb_regressor.pkl")
 
     # --------------------------------------------------------
-    # 5. GRADIENT BOOSTING REGRESSOR
+    # 4. GRADIENT BOOSTING REGRESSOR
     # --------------------------------------------------------
-    print("\n📉 Training Gradient Boosting Regressor…")
+    print("\n📉 Training GradientBoostingRegressor…")
     gbr = GradientBoostingRegressor(random_state=42)
     gbr.fit(X_train, y_reg_train)
-    reg_pred_gbr = gbr.predict(X_test)
+    gbr_pred = gbr.predict(X_test)
 
-    print("\nGBR MAE:", mean_absolute_error(y_reg_test, reg_pred_gbr))
-    print("GBR RMSE:", np.sqrt(mean_squared_error(y_reg_test, reg_pred_gbr)))
+    gbr_metrics = {
+        "mae": mean_absolute_error(y_reg_test, gbr_pred),
+        "rmse": np.sqrt(mean_squared_error(y_reg_test, gbr_pred)),
+    }
 
+    print("GBR Metrics:", gbr_metrics)
     joblib.dump(gbr, os.path.join(OUT_DIR, "gbr_regressor.pkl"))
-    print("✅ Saved gbr_regressor.pkl")
 
-    print("\n🎉 ALL MODELS TRAINED + SAVED SUCCESSFULLY!\n")
-    print(f"Saved in: {OUT_DIR}")
+    # --------------------------------------------------------
+    # SAVE FULL METRICS FILE
+    # --------------------------------------------------------
+    metrics = {
+        "rf": rf_metrics,
+        "xgb_classifier": xgb_clf_metrics,
+        "xgb_regressor": xgb_reg_metrics,
+        "gradient_boosting": gbr_metrics,
+        "isolation_forest": {
+            "contamination": iso.contamination,
+            "estimators": iso.n_estimators
+        }
+    }
+
+    joblib.dump(metrics, os.path.join(OUT_DIR, "metrics.pkl"))
+    print("\n📦 Saved metrics.pkl")
+
+    print("\n🎉 ALL MODELS TRAINED + SAVED SUCCESSFULLY!")
+    print(f"Files saved to: {OUT_DIR}")
 
 
 # ------------------------------------------------------------
