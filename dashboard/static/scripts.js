@@ -9,13 +9,15 @@ let cityStats = [];
 let realtimeData = [];
 let allCities = [];
 let modelMetrics = {};
+let transformerForecast = [];
+let transformerMode = "7day"; // default tab
 
 // ============================================
 // HELPERS
 // ============================================
 
 function getAQICategory(aqi) {
-    if (!aqi && aqi !== 0) return "Unknown";
+    if (aqi === null || aqi === undefined || Number.isNaN(aqi)) return "Unknown";
     aqi = Number(aqi);
     if (aqi <= 50) return "Good";
     if (aqi <= 100) return "Satisfactory";
@@ -32,7 +34,8 @@ function getCategoryColor(category) {
         "Moderate": "#FF6D00",
         "Poor": "#DD2C00",
         "Very Poor": "#7B1FA2",
-        "Severe": "#4A148C"
+        "Severe": "#4A148C",
+        "Unknown": "#64748B"
     };
     return colors[category] || "#888";
 }
@@ -58,6 +61,39 @@ function formatDate(dateStr) {
     } catch {
         return "-";
     }
+}
+
+function formatForecastLabel(ts, mode) {
+    if (!ts) return mode === "7day" ? "Day" : "T+";
+    const d = new Date(ts);
+    if (mode === "7day") {
+        return d.toLocaleDateString("en-IN", { weekday: "short" });
+    }
+    return d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+}
+
+// Bucketing helper for transformer forecast
+function bucketTransformerForecast(targetCount) {
+    const points = transformerForecast;
+    const n = points.length;
+    if (!n) return [];
+
+    if (targetCount >= n) {
+        // nothing to bucket, just return as-is
+        return points.slice(0, targetCount);
+    }
+
+    const step = n / targetCount;
+    const result = [];
+    for (let i = 0; i < targetCount; i++) {
+        const start = Math.floor(i * step);
+        const end = Math.max(start + 1, Math.floor((i + 1) * step));
+        const slice = points.slice(start, end);
+        const avgAqi = slice.reduce((sum, p) => sum + p.aqi, 0) / slice.length;
+        const ts = slice[0].timestamp;
+        result.push({ aqi: avgAqi, timestamp: ts });
+    }
+    return result;
 }
 
 // ============================================
@@ -127,7 +163,6 @@ async function predictAQI(payload) {
 }
 
 // -------- MODEL METRICS --------
-// -------- MODEL METRICS --------
 async function fetchModelMetrics() {
     try {
         const res = await fetch(`${API_BASE}/model-metrics`);
@@ -138,20 +173,17 @@ async function fetchModelMetrics() {
 
         modelMetrics = await res.json();
 
-        // Extract raw metrics
         const rfRaw = modelMetrics.rf_accuracy;
         const xgbClfRaw = modelMetrics.xgb_clf_accuracy;
         const xgbMaeRaw = modelMetrics.xgb_reg_mae;
         const gbMaeRaw = modelMetrics.gb_reg_mae;
 
-        // ===== FORMAT VALUES =====
-        const rfAcc = rfRaw != null ? (rfRaw * 100).toFixed(0) + "%" : "-";
-        const xgbClfAcc = xgbClfRaw != null ? (xgbClfRaw * 100).toFixed(0) + "%" : "-";
+        const rfAcc = rfRaw != null ? (rfRaw * 100).toFixed(0) + "%" : "--";
+        const xgbClfAcc = xgbClfRaw != null ? (xgbClfRaw * 100).toFixed(0) + "%" : "--";
 
-        const xgbMae = xgbMaeRaw != null ? xgbMaeRaw.toFixed(2) + " AQI" : "-";
-        const gbMae = gbMaeRaw != null ? gbMaeRaw.toFixed(2) + " AQI" : "-";
+        const xgbMae = xgbMaeRaw != null ? xgbMaeRaw.toFixed(2) + " AQI" : "--";
+        const gbMae = gbMaeRaw != null ? gbMaeRaw.toFixed(2) + " AQI" : "--";
 
-        // ===== UPDATE UI =====
         const rfAccEl = document.getElementById("rf-acc");
         const xgbClfEl = document.getElementById("xgb-clf-acc");
         const xgbMaeEl = document.getElementById("xgb-reg-mae");
@@ -169,6 +201,39 @@ async function fetchModelMetrics() {
     }
 }
 
+// -------- TRANSFORMER FORECAST --------
+async function fetchTransformerForecast() {
+    try {
+        const res = await fetch(`${API_BASE}/transformer-forecast`);
+        if (!res.ok) {
+            console.log("transformer-forecast HTTP", res.status);
+            transformerForecast = [];
+            return [];
+        }
+
+        const data = await res.json();
+        const raw = Array.isArray(data.forecast) ? data.forecast : [];
+
+        transformerForecast = raw
+            .map((p, idx) => {
+                const aqiVal = (p.aqi === null || p.aqi === undefined || Number.isNaN(p.aqi))
+                    ? null
+                    : Number(p.aqi);
+                return {
+                    step: p.step ?? idx + 1,
+                    aqi: aqiVal,
+                    timestamp: p.timestamp || null
+                };
+            })
+            .filter(p => p.aqi !== null);
+
+        return transformerForecast;
+    } catch (err) {
+        console.error("transformer-forecast error:", err);
+        transformerForecast = [];
+        return [];
+    }
+}
 
 // ============================================
 // REALTIME + PREDICTION PIPELINE
@@ -232,7 +297,6 @@ function renderStatsOverview() {
         mlAnomaly: 0
     };
 
-    // City-level category distribution
     cityStats.forEach(c => {
         const cat = getAQICategory(c.avg_aqi);
         switch (cat) {
@@ -245,7 +309,6 @@ function renderStatsOverview() {
         }
     });
 
-    // ML insights from prediction API
     predictedRows.forEach(r => {
         const p = r.prediction || {};
         if (p.unsafe_label === 1) stats.mlUnsafe++;
@@ -387,70 +450,95 @@ function renderModelComparison() {
 }
 
 // ============================================
-// FORECAST (CARD-BASED)
+// TRANSFORMER FORECAST RENDERING
 // ============================================
 
-function generateForecast(type) {
+function renderTransformerForecast(mode) {
+    transformerMode = mode;
+
     const grid = document.getElementById("forecastGrid");
+    const titleEl = document.getElementById("transformer-summary-title");
+    const subtitleEl = document.getElementById("transformer-summary-subtitle");
+    const mainEl = document.getElementById("transformer-summary-main");
+    const aqiEl = document.getElementById("transformer-summary-aqi");
+    const catEl = document.getElementById("transformer-summary-category");
+    const detailEl = document.getElementById("transformer-summary-detail");
+
     if (!grid) return;
 
-    let num, labels;
-    if (type === "7day") {
-        num = 7;
-        labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-    } else if (type === "24hr") {
-        num = 8;
-        labels = ["Now", "3h", "6h", "9h", "12h", "15h", "18h", "21h"];
+    if (!transformerForecast.length) {
+        grid.innerHTML = `<p style="text-align:center; color:#64748B; grid-column:1/-1;">
+            No transformer forecast data available.
+        </p>`;
+        if (titleEl) titleEl.textContent = "Forecast unavailable";
+        if (subtitleEl) subtitleEl.textContent = "Transformer model output is not available right now.";
+        if (mainEl) mainEl.style.display = "none";
+        return;
+    }
+
+    let targetCount;
+    if (mode === "24hr") {
+        targetCount = Math.min(24, transformerForecast.length);
+    } else if (mode === "48hr") {
+        targetCount = Math.min(16, transformerForecast.length); // grouped a bit coarser
     } else {
-        num = 8;
-        labels = ["6h", "12h", "18h", "24h", "30h", "36h", "42h", "48h"];
+        targetCount = Math.min(7, transformerForecast.length);
     }
 
-    let avgAQI = 150;
-    if (cityStats.length > 0) {
-        const s = cityStats.reduce((sum, c) => sum + (c.avg_aqi || 0), 0);
-        avgAQI = s / cityStats.length;
-    } else if (baseRows.length > 0) {
-        const s = baseRows.reduce(
-            (sum, r) => sum + (r.AQI_official || r["PM2.5"] || 0),
-            0
-        );
-        avgAQI = s / baseRows.length;
-    }
+    const buckets = bucketTransformerForecast(targetCount);
 
-    const forecasts = Array.from({ length: num }, (_, i) => {
-        const variation = (Math.random() - 0.5) * 80;
-        const aqi = Math.max(20, Math.round(avgAQI + variation));
-        const category = getAQICategory(aqi);
-        return {
-            label: labels[i] || `Step ${i + 1}`,
-            aqi,
-            category,
-            pm25: Math.round(aqi * 0.5),
-            pm10: Math.round(aqi * 0.8)
-        };
-    });
+    grid.innerHTML = buckets.map((f, idx) => {
+        const aqiVal = Math.round(f.aqi);
+        const cat = getAQICategory(aqiVal);
+        const color = getCategoryColor(cat);
+        const label = formatForecastLabel(f.timestamp, mode);
 
-    grid.innerHTML = forecasts.map(f => `
-        <div class="forecast-card">
-            <div class="forecast-day">${f.label}</div>
-            <div class="forecast-aqi" style="color:${getCategoryColor(f.category)}">${f.aqi}</div>
-            <span class="forecast-category badge ${f.category.toLowerCase().replace(" ", "-")}">
-                ${f.category}
-            </span>
-            <div class="forecast-details">
-                <div>PM2.5: ${f.pm25}</div>
-                <div>PM10: ${f.pm10}</div>
+        return `
+            <div class="forecast-card">
+                <div class="forecast-day">${label}</div>
+                <div class="forecast-aqi" style="color:${color}">
+                    ${Number.isFinite(aqiVal) ? aqiVal : "-"}
+                </div>
+                <span class="forecast-category badge ${cat.toLowerCase().replace(" ", "-")}">
+                    ${cat}
+                </span>
+                <div class="forecast-details">
+                    <div>Step: ${idx + 1}</div>
+                    <div>Mode: ${mode === "7day" ? "Daily" : "Hourly"}</div>
+                </div>
             </div>
-        </div>
-    `).join("");
+        `;
+    }).join("");
+
+    // Summary card from first bucket
+    const first = buckets[0];
+    const sumAqi = Math.round(first.aqi);
+    const sumCat = getAQICategory(sumAqi);
+
+    if (titleEl) {
+        const modeLabel = mode === "7day" ? "coming days" :
+            (mode === "48hr" ? "next 48 hours" : "next 24 hours");
+        titleEl.textContent = `Predicted AQI – ${modeLabel}`;
+    }
+    if (subtitleEl) {
+        subtitleEl.textContent = "Sequence-to-sequence Transformer forecast using past AQI_official values.";
+    }
+    if (mainEl) mainEl.style.display = "block";
+    if (aqiEl) aqiEl.textContent = Number.isFinite(sumAqi) ? sumAqi : "--";
+    if (catEl) {
+        catEl.textContent = sumCat;
+        catEl.style.color = getCategoryColor(sumCat);
+    }
+    if (detailEl) {
+        detailEl.textContent = `Model suggests ${sumCat} air quality around an AQI of ~${Number.isFinite(sumAqi) ? sumAqi : "N/A"}.`;
+    }
 }
 
-function switchForecast(type, btn) {
+function switchTransformerForecast(type, btn) {
     const buttons = document.querySelectorAll(".time-btn");
     buttons.forEach(b => b.classList.remove("active"));
     if (btn) btn.classList.add("active");
-    generateForecast(type);
+    renderTransformerForecast(type);
 }
 
 // ============================================
@@ -530,12 +618,13 @@ async function refreshData() {
         await fetchCityStats();
         await fetchRealtimeAndPredict();
         await fetchModelMetrics();
+        await fetchTransformerForecast();
 
         renderStatsOverview();
         renderCityCards();
         renderRecentTable();
         renderModelComparison();
-        generateForecast("7day");
+        renderTransformerForecast(transformerMode);
         setupSearchAutocomplete();
     } catch (err) {
         console.error("Manual refresh failed:", err);
@@ -552,12 +641,13 @@ async function initDashboard() {
         await fetchCityStats();
         await fetchRealtimeAndPredict();
         await fetchModelMetrics();
+        await fetchTransformerForecast();
 
         renderStatsOverview();
         renderCityCards();
         renderRecentTable();
         renderModelComparison();
-        generateForecast("7day");
+        renderTransformerForecast("7day");
         setupSearchAutocomplete();
 
         // Auto-refresh every 5 minutes
@@ -566,11 +656,12 @@ async function initDashboard() {
             await fetchCityStats();
             await fetchRealtimeAndPredict();
             await fetchModelMetrics();
+            await fetchTransformerForecast();
             renderStatsOverview();
             renderCityCards();
             renderRecentTable();
             renderModelComparison();
-            generateForecast("7day");
+            renderTransformerForecast(transformerMode);
         }, 300000);
     } catch (err) {
         console.error("Dashboard init failed:", err);

@@ -320,7 +320,6 @@
             color: var(--text-primary);
         }
 
-
         .stat-content p {
             color: var(--text-secondary);
             font-size: 0.85rem;
@@ -387,6 +386,19 @@
             color: #e5e7eb;
         }
 
+        .forecast-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+            gap: 1.5rem;
+            align-items: stretch;
+        }
+
+        @media (max-width: 992px) {
+            .forecast-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
         .forecast-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -441,6 +453,71 @@
             font-size: 0.75rem;
             color: var(--text-secondary);
         }
+
+        /* Transformer summary card (Option C) */
+
+        .transformer-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(260px, 1.2fr);
+    gap: 1.75rem;
+    align-items: stretch;
+}
+
+.transformer-summary-card {
+    background: rgba(15,23,42,0.95);
+    border-radius: 1.25rem;
+    padding: 1.5rem 1.6rem;
+    border: 1px solid rgba(30,64,175,0.7);
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    min-height: 220px;
+}
+
+.summary-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 0.25rem 0.8rem;
+    border-radius: 999px;
+    background: rgba(56,189,248,0.12);
+    color: var(--primary);
+    margin-bottom: 0.8rem;
+}
+
+.summary-main {
+    margin-top: 1.25rem;
+}
+
+.summary-aqi {
+    font-size: 2.4rem;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 0.25rem;
+}
+
+.summary-category {
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-bottom: 0.4rem;
+}
+
+.summary-detail {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+@media (max-width: 900px) {
+    .transformer-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
 
         /* CITY CARDS */
 
@@ -757,20 +834,41 @@
             </div>
         </section>
 
-        <!-- Forecast (pattern-based cards, dark UI) -->
+        <!-- Forecast (Transformer-based) -->
         <section id="forecast" class="section">
-            <div class="forecast-section">
-                <div class="forecast-header">
-                    <h2><i class="fas fa-calendar-week"></i> AQI Forecast (Pattern-based)</h2>
-                    <div class="time-selector">
-                        <button class="time-btn active" onclick="switchForecast('7day', this)">7 Days</button>
-                        <button class="time-btn" onclick="switchForecast('24hr', this)">24 Hours</button>
-                        <button class="time-btn" onclick="switchForecast('48hr', this)">48 Hours</button>
-                    </div>
-                </div>
-                <div class="forecast-grid" id="forecastGrid"></div>
+    <div class="forecast-section">
+        <div class="forecast-header">
+            <h2><i class="fas fa-calendar-week"></i> Transformer-based AQI Forecast</h2>
+            <div class="time-selector">
+                <button class="time-btn active" onclick="switchTransformerForecast('7day', this)">7 Days</button>
+                <button class="time-btn" onclick="switchTransformerForecast('24hr', this)">24 Hours</button>
+                <button class="time-btn" onclick="switchTransformerForecast('48hr', this)">48 Hours</button>
             </div>
-        </section>
+        </div>
+
+        <div class="transformer-layout">
+            <!-- Left: cards grid driven by Transformer outputs -->
+            <div class="forecast-grid" id="forecastGrid"></div>
+
+            <!-- Right: summary card -->
+            <div class="transformer-summary-card" id="transformerSummaryCard">
+                <div class="summary-pill">
+                    <i class="fas fa-brain"></i>
+                    TRANSFORMER
+                </div>
+                <h3 id="transformer-summary-title">Forecast unavailable</h3>
+                <p id="transformer-summary-subtitle">
+                    Transformer model output is not available right now.
+                </p>
+                <div class="summary-main" id="transformer-summary-main" style="display:none;">
+                    <div class="summary-aqi" id="transformer-summary-aqi">--</div>
+                    <div class="summary-category" id="transformer-summary-category">-</div>
+                    <div class="summary-detail" id="transformer-summary-detail"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
 
         <!-- City cards -->
         <section id="cities" class="section">
@@ -797,7 +895,7 @@
                                 <th>PM2.5</th>
                                 <th>PM10</th>
                                 <th>Last Update</th>
-                                <th>Unsafe (RF)</th>
+                                <th>Unsafe (RF/XGB)</th>
                                 <th>Anomaly (IF)</th>
                             </tr>
                         </thead>
@@ -809,81 +907,80 @@
 
         <!-- Model performance + comparison -->
         <section id="models" class="section">
-    <div class="section-header">
-        <h2 class="section-title">Model Performance & Comparison</h2>
-    </div>
+            <div class="section-header">
+                <h2 class="section-title">Model Performance & Comparison</h2>
+            </div>
 
-    <!-- Metrics cards -->
-    <div class="stats-grid">
+            <!-- Metrics cards -->
+            <div class="stats-grid">
 
-        <!-- Random Forest Accuracy -->
-        <div class="stat-card ml">
-            <div class="stat-icon">
-                <i class="fas fa-tree"></i>
-            </div>
-            <div class="stat-content">
-                <h3 id="rf-acc">--%</h3>
-                <p>Random Forest Classifier Accuracy</p>
-            </div>
-        </div>
+                <!-- Random Forest Accuracy -->
+                <div class="stat-card ml">
+                    <div class="stat-icon">
+                        <i class="fas fa-tree"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3 id="rf-acc">--</h3>
+                        <p>Random Forest Classifier Accuracy</p>
+                    </div>
+                </div>
 
-        <!-- XGBoost Classifier Accuracy -->
-        <div class="stat-card ml">
-            <div class="stat-icon">
-                <i class="fas fa-bolt"></i>
-            </div>
-            <div class="stat-content">
-                <h3 id="xgb-clf-acc">--%</h3>
-                <p>XGBoost Classifier Accuracy</p>
-            </div>
-        </div>
+                <!-- XGBoost Classifier Accuracy -->
+                <div class="stat-card ml">
+                    <div class="stat-icon">
+                        <i class="fas fa-bolt"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3 id="xgb-clf-acc">--</h3>
+                        <p>XGBoost Classifier Accuracy</p>
+                    </div>
+                </div>
 
-        <!-- XGBoost Regressor MAE -->
-        <div class="stat-card ml">
-            <div class="stat-icon">
-                <i class="fas fa-chart-line"></i>
-            </div>
-            <div class="stat-content">
-                <h3 id="xgb-reg-mae">--</h3>
-                <p>XGBoost Regressor MAE (AQI)</p>
-            </div>
-        </div>
+                <!-- XGBoost Regressor MAE -->
+                <div class="stat-card ml">
+                    <div class="stat-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3 id="xgb-reg-mae">--</h3>
+                        <p>XGBoost Regressor MAE (AQI)</p>
+                    </div>
+                </div>
 
-        <!-- Gradient Boosting Regressor MAE -->
-        <div class="stat-card ml">
-            <div class="stat-icon">
-                <i class="fas fa-signal"></i>
+                <!-- Gradient Boosting Regressor MAE -->
+                <div class="stat-card ml">
+                    <div class="stat-icon">
+                        <i class="fas fa-signal"></i>
+                    </div>
+                    <div class="stat-content">
+                        <h3 id="gb-reg-mae">--</h3>
+                        <p>Gradient Boosting MAE (AQI)</p>
+                    </div>
+                </div>
             </div>
-            <div class="stat-content">
-                <h3 id="gb-reg-mae">--</h3>
-                <p>Gradient Boosting MAE (AQI)</p>
+
+            <!-- Prediction comparison table -->
+            <div class="table-card">
+                <h2 style="margin-bottom: 1.25rem; font-size: 1.3rem; font-weight: 600;">
+                    Sample Model-wise Predictions (same inputs)
+                </h2>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>City</th>
+                                <th>PM2.5</th>
+                                <th>RF Unsafe?</th>
+                                <th>XGB Class</th>
+                                <th>XGB AQI (Reg)</th>
+                                <th>GBR AQI (Reg)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modelCompareBody"></tbody>
+                    </table>
+                </div>
             </div>
-        </div>
-    </div>
-
-    <!-- Prediction comparison table -->
-    <div class="table-card">
-        <h2 style="margin-bottom: 1.25rem; font-size: 1.3rem; font-weight: 600;">
-            Sample Model-wise Predictions (same inputs)
-        </h2>
-        <div class="table-wrapper">
-            <table>
-                <thead>
-                    <tr>
-                        <th>City</th>
-                        <th>PM2.5</th>
-                        <th>RF Unsafe?</th>
-                        <th>XGB Class</th>
-                        <th>XGB AQI (Reg)</th>
-                        <th>GBR AQI (Reg)</th>
-                    </tr>
-                </thead>
-                <tbody id="modelCompareBody"></tbody>
-            </table>
-        </div>
-    </div>
-</section>
-
+        </section>
     </main>
 
     <div class="loading-overlay" id="loadingOverlay">

@@ -7,12 +7,24 @@ import numpy as np
 import os
 import joblib
 import subprocess
+import torch
+import pickle
 
-# ---------------------------------------------------
+from ml.train_transformer import AQITransformer, load_series
+
+# --------------------------------------------------
 # JSON SAFE CONVERSION
 # ---------------------------------------------------
 def json_safe(x):
-    if isinstance(x, (pd._libs.missing.NAType,)) or pd.isna(x):
+    # Handle pandas missing types + NaN safely
+    try:
+        from pandas._libs.missing import NAType
+        if isinstance(x, NAType):
+            return None
+    except Exception:
+        pass
+
+    if isinstance(x, (pd._libs.missing.NAType,)) or (isinstance(x, float) and pd.isna(x)):
         return None
     if isinstance(x, (np.bool_, bool)):
         return bool(x)
@@ -249,6 +261,7 @@ def model_metrics():
     file_path = os.path.join(MODEL_DIR, "metrics.pkl")
 
     if not os.path.exists(file_path):
+        # Default keys so frontend doesn't break
         return jsonify({
             "rf_accuracy": None,
             "xgb_clf_accuracy": None,
@@ -268,7 +281,6 @@ def model_metrics():
     return jsonify({k: json_safe(v) for k, v in normalized.items()})
 
 
-
 # ---------------------------------------------------
 # RUN INGEST SCRIPT
 # ---------------------------------------------------
@@ -280,6 +292,78 @@ def ingest():
         return jsonify({"status": "ok", "output": output})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+# ---------------------------------------------------
+# TRANSFORMER FORECAST API (FINAL FIXED)
+# ---------------------------------------------------
+@app.get("/api/transformer-forecast")
+def transformer_forecast():
+    """
+    Uses the trained AQITransformer to forecast next `horizon` AQI_official values.
+    Returns a list of steps with timestamps and predicted AQI.
+    """
+    try:
+        model_path = os.path.join(MODEL_DIR, "transformer_aqi.pt")
+        cfg_path = os.path.join(MODEL_DIR, "transformer_config.pkl")
+
+        if not os.path.exists(model_path) or not os.path.exists(cfg_path):
+            # Keep response shape consistent
+            return jsonify({"forecast": []}), 404
+
+        # Load config
+        cfg = joblib.load(cfg_path)
+        seq_len = int(cfg.get("seq_len", 24))
+        horizon = int(cfg.get("horizon", 24))
+
+        # Load time-series the same way as during training
+        series = load_series()          # np.array of AQI_official (float32, NaNs dropped)
+
+        if len(series) < seq_len:
+            return jsonify({"forecast": []}), 400
+
+        last_seq = series[-seq_len:].astype(np.float32)
+
+        # Rebuild model with same hyperparameters
+        model = AQITransformer(
+            d_model=cfg.get("d_model", 64),
+            nhead=cfg.get("nhead", 4),
+            num_layers=cfg.get("num_layers", 3),
+            dim_feedforward=cfg.get("dim_feedforward", 128),
+            dropout=0.1,
+            seq_len=seq_len,
+            horizon=horizon,
+        )
+        state_dict = torch.load(model_path, map_location="cpu")
+        model.load_state_dict(state_dict)
+        model.eval()
+
+        inp = torch.from_numpy(last_seq).unsqueeze(0).unsqueeze(-1)  # (1, seq_len, 1)
+
+        with torch.no_grad():
+            preds = model(inp).cpu().numpy().reshape(-1)
+
+        # Build JSON-safe forecast (convert NaN/inf -> None)
+        base_ts = pd.Timestamp.now()
+        forecast = []
+        for i, val in enumerate(preds):
+            val = float(val)
+            if not np.isfinite(val):
+                aqi_val = None
+            else:
+                aqi_val = val
+
+            ts = base_ts + pd.Timedelta(hours=i + 1)
+            forecast.append({
+                "step": i + 1,
+                "aqi": aqi_val,
+                "timestamp": ts.isoformat()
+            })
+
+        return jsonify({"forecast": forecast})
+
+    except Exception as e:
+        print("Transformer forecast error:", e)
+        return jsonify({"forecast": [], "error": str(e)}), 500
 
 
 # ---------------------------------------------------
